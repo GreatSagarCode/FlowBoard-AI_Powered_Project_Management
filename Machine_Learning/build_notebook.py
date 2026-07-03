@@ -8,7 +8,7 @@ def cell(source, cell_type="code"):
 cells = []
 
 # ── 1. Header ──
-cells.append(cell("# 🧠 ML Pipeline for Project Management System\n\n> **Training Notebook** — Task Classification, Priority Classification, Duration Prediction\n>\n> Dataset: Synthetic JIRA Issues (3000 records)\n>\n> Models: TF-IDF + Logistic Regression, Random Forest, Gradient Boosting","markdown"))
+cells.append(cell("# 🧠 ML Pipeline for Project Management System\n\n> **Training Notebook** — Task Classification, Priority Classification, Duration Prediction\n>\n> Dataset: Synthetic JIRA Issues (3000 records)\n>\n> Models: TF-IDF + Logistic Regression, TF-IDF + Random Forest Classifier, TF-IDF + Random Forest Regressor","markdown"))
 
 # ── 2. Imports ──
 cells.append(cell("""import pandas as pd
