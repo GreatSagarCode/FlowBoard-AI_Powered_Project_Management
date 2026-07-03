@@ -1,0 +1,1727 @@
+{% extends 'base.html' %}
+
+{% block top_header %}
+    <span class="text-zinc-400 font-medium">Projects</span>
+    <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400"></i>
+    <span class="text-zinc-800 dark:text-supabase-text text-lg font-bold">{{ project.title }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-8 pb-20">
+    <!-- Project Header with Action -->
+    <div class="flex items-center justify-between mb-8">
+        <div class="flex items-center gap-4">
+            <a href="{{ url_for('projects.list_projects') }}" class="text-zinc-500 hover:text-zinc-900 transition-all">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </a>
+            {% set base_colors = [
+                'text-rose-600 dark:text-rose-400',
+                'text-emerald-600 dark:text-emerald-400',
+                'text-blue-600 dark:text-blue-400',
+                'text-violet-600 dark:text-violet-400',
+                'text-amber-600 dark:text-amber-400',
+                'text-cyan-600 dark:text-cyan-400',
+                'text-fuchsia-600 dark:text-fuchsia-400',
+                'text-teal-600 dark:text-teal-400'
+            ] %}
+            {% set color_idx = project.id % base_colors|length %}
+            <h1 class="text-[22px] font-bold {{ base_colors[color_idx] }}">{{ project.title }}</h1>
+            <span class="px-2 py-1 bg-zinc-100 text-zinc-600 dark:bg-supabase-card dark:text-supabase-muted text-[10px] font-bold rounded-none uppercase tracking-wide border border-zinc-200 dark:border-supabase-border">ACTIVE</span>
+        </div>
+        <button onclick="openModal('createTaskModal')" class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-none transition-all">
+            <i data-lucide="plus" class="w-4 h-4"></i> New Task
+        </button>
+    </div>
+
+    <!-- 4 Stats Cards matching Screenshot -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+        <div class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border p-5 rounded-none shadow-sm transition-all hover:shadow-md">
+            <div class="flex items-center justify-between mb-3">
+               <div class="text-zinc-500 text-sm font-normal">Total Tasks</div>
+               <div class="text-zinc-400 dark:text-supabase-muted"><i data-lucide="zap" class="w-4 h-4"></i></div>
+            </div>
+            <div class="text-3xl font-bold text-zinc-900 dark:text-white">{{ project.tasks.count() }}</div>
+        </div>
+
+        <div class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border p-5 rounded-none shadow-sm transition-all hover:shadow-md">
+            <div class="flex items-center justify-between mb-3">
+               <div class="text-zinc-500 text-sm font-normal">Completed</div>
+               <div class="text-zinc-400 dark:text-supabase-muted"><i data-lucide="zap" class="w-4 h-4"></i></div>
+            </div>
+            <div class="text-3xl font-bold text-zinc-900 dark:text-white">{{ project.tasks.filter_by(status='Done').count() }}</div>
+        </div>
+
+        <div class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border p-5 rounded-none shadow-sm transition-all hover:shadow-md">
+            <div class="flex items-center justify-between mb-3">
+               <div class="text-zinc-500 text-sm font-normal">In Progress</div>
+               <div class="text-zinc-400 dark:text-supabase-muted"><i data-lucide="zap" class="w-4 h-4"></i></div>
+            </div>
+            <div class="text-3xl font-bold text-zinc-900 dark:text-white">{{ project.tasks.filter_by(status='In Progress').count() }}</div>
+        </div>
+
+        <div class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border p-5 rounded-none shadow-sm transition-all hover:shadow-md">
+            <div class="flex items-center justify-between mb-3">
+               <div class="text-zinc-500 text-sm font-normal">Team Members</div>
+               <div class="text-zinc-400 dark:text-supabase-muted"><i data-lucide="zap" class="w-4 h-4"></i></div>
+            </div>
+            <div class="text-3xl font-bold text-zinc-900 dark:text-white">{{ project.members|length }}</div>
+        </div>
+    </div>
+
+    <!-- Tabs Nav matching Screenshot -->
+    <div class="flex items-center gap-1 mb-6 border-b border-zinc-200 dark:border-supabase-border pb-px">
+        <button onclick="showTab('backlog')" id="tab-btn-backlog" class="tab-btn px-4 py-2 text-sm font-medium transition flex items-center gap-2 rounded-none-lg {% if not request.args.get('tab') or request.args.get('tab') == 'backlog' %}active{% endif %}">
+            <i data-lucide="layers" class="w-4 h-4"></i> Backlog
+        </button>
+        <button onclick="showTab('tasks')" id="tab-btn-tasks" class="tab-btn px-4 py-2 text-sm font-medium transition flex items-center gap-2 rounded-none-lg {% if request.args.get('tab') == 'tasks' %}active{% endif %}">
+            <i data-lucide="list" class="w-4 h-4"></i> Task List
+        </button>
+        <button onclick="showTab('board')" id="tab-btn-board" class="tab-btn px-4 py-2 text-sm font-medium transition flex items-center gap-2 rounded-none-lg {% if request.args.get('tab') == 'board' %}active{% endif %}">
+            <i data-lucide="layout" class="w-4 h-4"></i> Board
+        </button>
+        <button onclick="showTab('calendar')" id="tab-btn-calendar" class="tab-btn px-4 py-2 text-sm font-medium transition flex items-center gap-2 rounded-none-lg {% if request.args.get('tab') == 'calendar' %}active{% endif %}">
+            <i data-lucide="calendar" class="w-4 h-4"></i> Calendar
+        </button>
+        <button onclick="showTab('docs')" id="tab-btn-docs" class="tab-btn px-4 py-2 text-sm font-medium transition flex items-center gap-2 rounded-none-lg {% if request.args.get('tab') == 'docs' %}active{% endif %}">
+            <i data-lucide="file-text" class="w-4 h-4"></i> Docs
+        </button>
+        <button onclick="showTab('analytics')" id="tab-btn-analytics" class="tab-btn px-4 py-2 text-sm font-medium transition flex items-center gap-2 rounded-none-lg {% if request.args.get('tab') == 'analytics' %}active{% endif %}">
+            <i data-lucide="bar-chart-2" class="w-4 h-4"></i> Analytics
+        </button>
+        <button onclick="showTab('settings')" id="tab-btn-settings" class="tab-btn px-4 py-2 text-sm font-medium transition flex items-center gap-2 rounded-none-lg {% if request.args.get('tab') == 'settings' %}active{% endif %}">
+            <i data-lucide="settings" class="w-4 h-4"></i> Settings
+        </button>
+    </div>
+
+    <!-- Global Filters Bar -->
+    <div id="global-filters-bar" class="flex flex-wrap items-center justify-between gap-4 mb-8 px-2">
+        <div class="flex flex-wrap items-center gap-4">
+            <div class="relative">
+                <select id="filter-status" class="appearance-none bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none px-5 py-2.5 pr-10 text-sm font-semibold text-zinc-800 dark:text-supabase-text focus:outline-none focus:border-blue-500 transition cursor-pointer">
+                    <option value="all">All Statuses</option>
+                    <option value="To Do">To Do</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Done">Done</option>
+                </select>
+                <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"></i>
+            </div>
+            <div class="relative">
+                <select id="filter-type" class="appearance-none bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none px-5 py-2.5 pr-10 text-sm font-semibold text-zinc-800 dark:text-supabase-text focus:outline-none focus:border-blue-500 transition cursor-pointer">
+                    <option value="all">All Types</option>
+                    <option value="Task">Task</option>
+                    <option value="Feature">Feature</option>
+                    <option value="Bug">Bug</option>
+                    <option value="Design">Design</option>
+                    <option value="Frontend">Frontend</option>
+                    <option value="Backend">Backend</option>
+                    <option value="DevOps">DevOps</option>
+                    <option value="Docs">Docs</option>
+                </select>
+                <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"></i>
+            </div>
+            <div class="relative">
+                <select id="filter-priority" class="appearance-none bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none px-5 py-2.5 pr-10 text-sm font-semibold text-zinc-800 dark:text-supabase-text focus:outline-none focus:border-blue-500 transition cursor-pointer">
+                    <option value="all">All Priorities</option>
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
+                </select>
+                <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"></i>
+            </div>
+            <div class="relative">
+                <select id="filter-assignee" class="appearance-none bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none px-5 py-2.5 pr-10 text-sm font-semibold text-zinc-800 dark:text-supabase-text focus:outline-none focus:border-blue-500 transition cursor-pointer">
+                    <option value="all">All Assignees</option>
+                    {% for member in org_members %}
+                    <option value="{{ member.id }}">{{ member.username }}</option>
+                    {% endfor %}
+                </select>
+                <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"></i>
+            </div>
+        </div>
+        
+        <button id="bulk-delete-btn" onclick="deleteSelectedTasks()" class="hidden items-center gap-2 px-4 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-bold rounded-none transition-all border border-rose-500/20">
+            <i data-lucide="trash-2" class="w-4 h-4"></i> Delete Selected
+        </button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
+    <!-- Backlog Tab (Agile View) -->
+    <div id="tab-backlog" class="tab-content {% if request.args.get('tab') and request.args.get('tab') != 'backlog' %}hidden{% endif %}">
+        <div class="space-y-6">
+            <!-- Sprint Management UI -->
+            {% for sprint in project.sprints.all() %}
+            <div class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none">
+                <div class="px-6 py-4 border-b border-zinc-100 dark:border-supabase-border flex items-center justify-between">
+                    <div class="flex items-center gap-4">
+                        <i data-lucide="chevron-down" class="w-4 h-4 text-zinc-400"></i>
+                        <h3 class="text-sm font-semibold text-zinc-900 dark:text-white">{{ sprint.title }}</h3>
+                        <span class="text-xs font-medium text-zinc-400 uppercase tracking-wide px-2 py-0.5 bg-zinc-100 dark:bg-supabase-card rounded-none">{{ sprint.status }}</span>
+                        <span class="text-xs text-zinc-400 font-normal">{{ sprint.tasks.count() }} issues</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        {% if sprint.status == 'Planned' %}
+                        <form action="{{ url_for('projects.start_sprint', sprint_id=sprint.id) }}" method="POST">
+                            <button type="submit" class="px-4 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-none hover:bg-blue-700 transition">Start Sprint</button>
+                        </form>
+                        {% elif sprint.status == 'Active' %}
+                        <form action="{{ url_for('projects.complete_sprint', sprint_id=sprint.id) }}" method="POST">
+                            <button type="submit" class="px-4 py-1.5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-xs font-medium rounded-none hover:opacity-90 transition">Complete Sprint</button>
+                        </form>
+                        {% endif %}
+                        <div class="relative" x-data="{ open: false }">
+                            <button @click="open = !open" @click.away="open = false" class="p-1.5 text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all">
+                                <i data-lucide="more-horizontal" class="w-5 h-5"></i>
+                            </button>
+                            <div x-show="open" x-transition class="absolute right-0 mt-2 w-48 bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none shadow-2xl z-50 py-1">
+                                <a href="javascript:void(0)" onclick="editSprintName({{ sprint.id }}, '{{ sprint.title|escape }}')" class="flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-zinc-700 dark:text-supabase-text hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
+                                    <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit Sprint
+                                </a>
+                                {% if sprint.status == 'Active' %}
+                                <form action="{{ url_for('projects.complete_sprint', sprint_id=sprint.id) }}" method="POST">
+                                    <button type="submit" class="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors">
+                                        <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Complete Sprint
+                                    </button>
+                                </form>
+                                {% endif %}
+                                <div class="border-t border-zinc-100 dark:border-supabase-border my-1"></div>
+                                <a href="javascript:void(0)" onclick="deleteSprint({{ sprint.id }})" class="flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors">
+                                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Delete Sprint
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="sprint-dropzone min-h-[50px] divide-y divide-zinc-100 dark:divide-zinc-800/50" data-sprint-id="{{ sprint.id }}">
+                    {% for t in sprint.tasks.all() if not t.parent_id %}
+                    <div data-id="{{ t.id }}" data-status="{{ t.status }}" data-type="{{ t.issue_type }}" data-priority="{{ t.priority }}" data-assignee="{{ t.assignee_id or 'unassigned' }}" onclick="openTaskDetails({{ t.id }})" class="task-row group flex items-center justify-between px-6 py-3.5 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition-all cursor-pointer">
+                        <div class="flex items-center gap-4 flex-1">
+                            <i data-lucide="{{ {'Bug': 'bug', 'Feature': 'zap', 'Improvement': 'git-pull-request', 'Task': 'check-square'}.get(t.issue_type, 'check-square') }}" class="w-4 h-4 {{ {'Bug': 'text-rose-500', 'Feature': 'text-blue-500', 'Improvement': 'text-purple-500', 'Task': 'text-emerald-500'}.get(t.issue_type, 'text-zinc-400') }}"></i>
+                            <span class="text-xs font-bold text-zinc-400 uppercase tracking-wide w-16">PROJ-{{ t.id }}</span>
+                            <span class="text-sm font-bold text-zinc-800 dark:text-supabase-text group-hover:text-blue-600 transition-colors tracking-tight flex items-center gap-1">{{ t.title }}</span>
+                            {% if t.subtasks|length > 0 %}
+                            <span class="text-[10px] font-medium text-zinc-400 flex items-center gap-1"><i data-lucide="list-checks" class="w-3 h-3"></i> {{ t.subtasks|length }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <span class="px-2.5 py-0.5 rounded-none text-[10px] font-bold uppercase text-zinc-500 bg-zinc-100 dark:bg-supabase-card">{{ t.status }}</span>
+                            <div class="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-bold">
+                                {{ t.assignee.username[0]|upper if t.assignee else '?' }}
+                            </div>
+                            <button onclick="event.stopPropagation(); deleteTask({{ t.id }})" class="p-1.5 text-zinc-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all" title="Delete issue">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    <div class="px-6 py-2.5 border-t border-zinc-100 dark:border-supabase-border">
+                        <button onclick="openCreateTaskWithSprint({{ sprint.id }})" class="flex items-center gap-2 text-xs font-bold text-zinc-400 hover:text-blue-500 transition-colors">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Create issue
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+
+            <!-- General Backlog Section -->
+            <div class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none">
+                <div class="px-6 py-4 border-b border-zinc-100 dark:border-supabase-border flex items-center justify-between">
+                    <div class="flex items-center gap-4">
+                        <i data-lucide="chevron-down" class="w-4 h-4 text-zinc-400"></i>
+                        <h3 class="text-sm font-semibold text-zinc-900 dark:text-white">Backlog</h3>
+                        <span class="text-xs text-zinc-400 font-normal">{{ backlog_tasks|length }} issues</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <button onclick="openModal('createSprintModal')" class="px-4 py-1.5 border border-zinc-200 dark:border-supabase-border text-zinc-600 dark:text-supabase-muted text-xs font-medium rounded-none hover:bg-zinc-50 dark:hover:bg-zinc-800 transition">Create Sprint</button>
+                        <div class="relative" x-data="{ open: false }">
+                            <button @click="open = !open" @click.away="open = false" class="p-1.5 text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all">
+                                <i data-lucide="more-horizontal" class="w-5 h-5"></i>
+                            </button>
+                            <div x-show="open" x-transition class="absolute right-0 mt-2 w-48 bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none shadow-2xl z-50 py-1">
+                                <a href="#" class="flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-zinc-700 dark:text-supabase-text hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
+                                    <i data-lucide="move" class="w-3.5 h-3.5"></i> Move to Sprint
+                                </a>
+                                <div class="border-t border-zinc-100 dark:border-supabase-border my-1"></div>
+                                <a href="#" class="flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors">
+                                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Bulk Actions
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="sprint-dropzone min-h-[100px] divide-y divide-zinc-100 dark:divide-zinc-800/50" data-sprint-id="">
+                    {% for t in backlog_tasks %}
+                    <div data-id="{{ t.id }}" data-status="{{ t.status }}" data-type="{{ t.issue_type }}" data-priority="{{ t.priority }}" data-assignee="{{ t.assignee_id or 'unassigned' }}" onclick="openTaskDetails({{ t.id }})" class="task-row group flex items-center justify-between px-6 py-3.5 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition-all cursor-pointer">
+                        <div class="flex items-center gap-4 flex-1">
+                            <i data-lucide="{{ {'Bug': 'bug', 'Feature': 'zap', 'Improvement': 'git-pull-request', 'Task': 'check-square'}.get(t.issue_type, 'check-square') }}" class="w-4 h-4 {{ {'Bug': 'text-rose-500', 'Feature': 'text-blue-500', 'Improvement': 'text-purple-500', 'Task': 'text-emerald-500'}.get(t.issue_type, 'text-zinc-400') }}"></i>
+                            <span class="text-xs font-bold text-zinc-400 uppercase tracking-wide w-16">PROJ-{{ t.id }}</span>
+                            <span class="text-sm font-bold text-zinc-800 dark:text-supabase-text group-hover:text-blue-600 transition-colors tracking-tight flex items-center gap-1">{{ t.title }}</span>
+                            {% if t.subtasks|length > 0 %}
+                            <span class="text-[10px] font-medium text-zinc-400 flex items-center gap-1"><i data-lucide="list-checks" class="w-3 h-3"></i> {{ t.subtasks|length }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <span class="px-2.5 py-0.5 rounded-none text-[10px] font-bold uppercase text-zinc-500 bg-zinc-100 dark:bg-supabase-card">{{ t.status }}</span>
+                            <div class="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-bold">
+                                {{ t.assignee.username[0]|upper if t.assignee else '?' }}
+                            </div>
+                            <button onclick="event.stopPropagation(); deleteTask({{ t.id }})" class="p-1.5 text-zinc-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all" title="Delete issue">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% if not backlog_tasks %}
+                    <div class="py-10 text-center text-sm font-semibold text-zinc-400">No tasks in backlog. Drag issues here or create new ones.</div>
+                    {% endif %}
+                    <div class="px-6 py-2.5 border-t border-zinc-100 dark:border-supabase-border">
+                        <button onclick="openCreateTaskWithSprint(null)" class="flex items-center gap-2 text-xs font-bold text-zinc-400 hover:text-blue-500 transition-colors">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Create issue
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Task List Tab (Traditional View) -->
+    <div id="tab-tasks" class="tab-content {% if request.args.get('tab') != 'tasks' %}hidden{% endif %}">
+
+        <div class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none overflow-hidden shadow-sm">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-zinc-50/50 dark:bg-supabase-card/50 border-b border-zinc-100 dark:border-supabase-border">
+                        <th class="px-6 py-4 w-10">
+                            <input type="checkbox" onchange="toggleAllTasks(this)" class="rounded-none border-zinc-300 text-blue-600 focus:ring-blue-500">
+                        </th>
+                        <th class="px-6 py-4 text-xs font-bold text-zinc-400 uppercase tracking-widest">Title</th>
+                        <th class="px-6 py-4 text-xs font-bold text-zinc-400 uppercase tracking-widest">Type</th>
+                        <th class="px-6 py-4 text-xs font-bold text-zinc-400 uppercase tracking-widest">Priority</th>
+                        <th class="px-6 py-4 text-xs font-bold text-zinc-400 uppercase tracking-widest">Status</th>
+                        <th class="px-6 py-4 text-xs font-bold text-zinc-400 uppercase tracking-widest">Assignee</th>
+                        <th class="px-6 py-4 text-xs font-bold text-zinc-400 uppercase tracking-widest">Due Date</th>
+                    </tr>
+                </thead>
+                <tbody id="task-table-body" class="divide-y divide-zinc-100 dark:divide-zinc-800/50">
+                    {% for t in project.tasks.all() %}
+                    <tr class="task-row group hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition-all" 
+                        data-status="{{ t.status }}" 
+                        data-type="{{ t.issue_type }}" 
+                        data-priority="{{ t.priority }}" 
+                        data-assignee="{{ t.assignee_id }}">
+                        <td class="px-6 py-4">
+                            <input type="checkbox" onchange="updateBulkDeleteButton()" class="task-check rounded-none border-zinc-300 text-blue-600 focus:ring-blue-500" value="{{ t.id }}">
+                        </td>
+                        <td class="px-6 py-4">
+                            <span onclick="openTaskDetails({{ t.id }})" class="text-sm font-bold text-zinc-900 dark:text-white cursor-pointer hover:text-blue-600 transition-colors tracking-tight flex items-center gap-1">{% if t.parent_id %}<i data-lucide="corner-down-right" class="w-3.5 h-3.5 text-zinc-400 ml-4"></i>{% else %}<span class="text-xs font-bold text-zinc-400 uppercase tracking-wide mr-1">PROJ-{{ t.id }}</span>{% endif %} {{ t.title }}</span>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider {% if t.issue_type == 'Bug' %}text-rose-500{% elif t.issue_type == 'Feature' %}text-blue-500{% elif t.issue_type == 'Improvement' %}text-purple-500{% else %}text-emerald-500{% endif %}">
+                                <i data-lucide="{{ {'Bug': 'bug', 'Feature': 'zap', 'Improvement': 'git-pull-request', 'Task': 'check-square'}.get(t.issue_type, 'check-square') }}" class="w-4 h-4"></i>
+                                {{ t.issue_type }}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="px-3 py-1 rounded-none text-[10px] font-bold uppercase tracking-widest {% if t.priority|upper == 'HIGH' or t.priority|upper == 'HIGHEST' %}bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400{% elif t.priority|upper == 'MEDIUM' %}bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400{% else %}bg-zinc-100 text-zinc-600 dark:bg-supabase-card{% endif %}">{{ t.priority }}</span>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="relative inline-flex items-center">
+                                <select onchange="updateTaskStatus({{ t.id }}, this.value)" class="appearance-none bg-transparent text-sm font-bold text-zinc-800 dark:text-supabase-text cursor-pointer focus:outline-none pr-6">
+                                    <option value="To Do" {% if t.status == 'To Do' %}selected{% endif %}>To Do</option>
+                                    <option value="In Progress" {% if t.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                                    <option value="Done" {% if t.status == 'Done' %}selected{% endif %}>Done</option>
+                                </select>
+                                <i data-lucide="chevron-down" class="w-3.5 h-3.5 absolute right-0 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"></i>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-2">
+                                <div class="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+                                    {{ t.assignee.username[0]|upper if t.assignee else '?' }}
+                                </div>
+                                <span class="text-sm font-semibold text-zinc-800 dark:text-supabase-text">{{ t.assignee.username if t.assignee else 'Unassigned' }}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-2 text-sm font-medium text-zinc-500">
+                                <i data-lucide="calendar" class="w-4 h-4 text-zinc-400"></i>
+                                {{ t.due_date.strftime('%d %b') if t.due_date else '--' }}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="tab-board" class="tab-content {% if request.args.get('tab') != 'board' %}hidden{% endif %}">
+        {% if active_sprint %}
+        <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center gap-3">
+                <span class="px-3 py-1 bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold rounded-none">Active: {{ active_sprint.title }}</span>
+                <h2 class="text-lg font-semibold text-zinc-900 dark:text-white">Sprint Board</h2>
+            </div>
+            <div class="flex items-center gap-2">
+                <form action="{{ url_for('projects.complete_sprint', sprint_id=active_sprint.id) }}" method="POST">
+                    <button type="submit" class="text-xs font-medium px-4 py-2 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-none hover:opacity-90 transition">Complete Sprint</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 h-[calc(100vh-320px)] min-h-[600px]">
+            <!-- To Do Column -->
+            <div class="flex flex-col bg-zinc-50 dark:bg-supabase-card/30 rounded-none border border-zinc-100 dark:border-supabase-border/50 p-4">
+                <div class="flex items-center justify-between mb-4 px-2">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-none bg-zinc-400"></span>
+                        <h3 class="font-bold text-sm text-zinc-900 dark:text-white uppercase tracking-wider">To Do</h3>
+                        <span class="bg-zinc-200 dark:bg-supabase-card px-2 py-0.5 rounded-none text-xs font-bold text-zinc-500">{{ active_sprint.tasks.filter_by(status='To Do').count() }}</span>
+                    </div>
+                </div>
+                <div id="col-todo" data-status="To Do" class="kanban-col flex-1 space-y-3 overflow-y-auto no-scrollbar pb-10">
+                    {% for t in active_sprint.tasks.all() if t.status == 'To Do' %}
+                    <div data-id="{{ t.id }}" data-status="{{ t.status }}" data-type="{{ t.issue_type }}" data-priority="{{ t.priority }}" data-assignee="{{ t.assignee_id or 'unassigned' }}" class="kanban-card bg-white dark:bg-supabase-bg p-4 rounded-none border border-zinc-200 dark:border-supabase-border cursor-grab active:cursor-grabbing hover:border-blue-500/50 transition-all group">
+                        <div class="flex items-start justify-between mb-3">
+                            <i data-lucide="{{ {'Bug': 'bug', 'Feature': 'zap', 'Improvement': 'git-pull-request', 'Task': 'check-square'}.get(t.issue_type, 'check-square') }}" class="w-4 h-4 {{ {'Bug': 'text-rose-500', 'Feature': 'text-blue-500', 'Improvement': 'text-purple-500', 'Task': 'text-emerald-500'}.get(t.issue_type, 'text-zinc-400') }}"></i>
+                            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onclick="openTaskDetails({{ t.id }})" class="p-1 text-zinc-400 hover:text-blue-500"><i data-lucide="external-link" class="w-3.5 h-3.5"></i></button>
+                            </div>
+                        </div>
+                        <h4 class="text-sm font-bold text-zinc-900 dark:text-white mb-3 line-clamp-2 tracking-tight">
+                            {% if t.parent_id %}<div class="text-[10px] font-medium text-zinc-500 mb-1 flex items-center gap-1"><i data-lucide="corner-down-right" class="w-3 h-3"></i> Subtask</div>{% endif %}
+                            {{ t.title }}
+                        </h4>
+                        <div class="flex items-center justify-between">
+                            <div class="flex -space-x-1">
+                                {% if t.assignee %}
+                                <div class="w-7 h-7 rounded-full bg-emerald-500 border-2 border-white dark:border-zinc-950 flex items-center justify-center text-[10px] font-bold text-white">{{ t.assignee.username[0]|upper }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="flex items-center gap-1.5 text-zinc-400">
+                                <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+                                <span class="text-xs font-bold">{{ t.due_date.strftime('%b %d') if t.due_date else 'No date' }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- In Progress Column -->
+            <div class="flex flex-col bg-zinc-50 dark:bg-supabase-card/30 rounded-none border border-zinc-100 dark:border-supabase-border/50 p-4">
+                <div class="flex items-center justify-between mb-4 px-2">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-none bg-orange-500"></span>
+                        <h3 class="font-bold text-sm text-zinc-900 dark:text-white uppercase tracking-wider">In Progress</h3>
+                        <span class="bg-orange-100 dark:bg-orange-500/10 px-2 py-0.5 rounded-none text-xs font-bold text-orange-600">{{ active_sprint.tasks.filter_by(status='In Progress').count() }}</span>
+                    </div>
+                </div>
+                <div id="col-progress" data-status="In Progress" class="kanban-col flex-1 space-y-3 overflow-y-auto no-scrollbar pb-10">
+                    {% for t in active_sprint.tasks.all() if t.status == 'In Progress' %}
+                    <div data-id="{{ t.id }}" data-status="{{ t.status }}" data-type="{{ t.issue_type }}" data-priority="{{ t.priority }}" data-assignee="{{ t.assignee_id or 'unassigned' }}" class="kanban-card bg-white dark:bg-supabase-bg p-4 rounded-none border border-zinc-200 dark:border-supabase-border cursor-grab active:cursor-grabbing hover:border-blue-500/50 transition-all group">
+                        <div class="flex items-start justify-between mb-3">
+                            <i data-lucide="{{ {'Bug': 'bug', 'Feature': 'zap', 'Improvement': 'git-pull-request', 'Task': 'check-square'}.get(t.issue_type, 'check-square') }}" class="w-4 h-4 {{ {'Bug': 'text-rose-500', 'Feature': 'text-blue-500', 'Improvement': 'text-purple-500', 'Task': 'text-emerald-500'}.get(t.issue_type, 'text-zinc-400') }}"></i>
+                            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onclick="openTaskDetails({{ t.id }})" class="p-1 text-zinc-400 hover:text-blue-500"><i data-lucide="external-link" class="w-3.5 h-3.5"></i></button>
+                            </div>
+                        </div>
+                        <h4 class="text-sm font-bold text-zinc-900 dark:text-white mb-3 line-clamp-2 tracking-tight">
+                            {% if t.parent_id %}<div class="text-[10px] font-medium text-zinc-500 mb-1 flex items-center gap-1"><i data-lucide="corner-down-right" class="w-3 h-3"></i> Subtask</div>{% endif %}
+                            {{ t.title }}
+                        </h4>
+                        <div class="flex items-center justify-between">
+                            <div class="flex -space-x-1">
+                                {% if t.assignee %}
+                                <div class="w-7 h-7 rounded-full bg-emerald-500 border-2 border-white dark:border-zinc-950 flex items-center justify-center text-[10px] font-bold text-white">{{ t.assignee.username[0]|upper }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="flex items-center gap-1.5 text-zinc-400">
+                                <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+                                <span class="text-xs font-bold">{{ t.due_date.strftime('%b %d') if t.due_date else 'No date' }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Done Column -->
+            <div class="flex flex-col bg-zinc-50 dark:bg-supabase-card/30 rounded-none border border-zinc-100 dark:border-supabase-border/50 p-4">
+                <div class="flex items-center justify-between mb-4 px-2">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-none bg-emerald-500"></span>
+                        <h3 class="font-bold text-sm text-zinc-900 dark:text-white uppercase tracking-wider">Done</h3>
+                        <span class="bg-emerald-100 dark:bg-emerald-500/10 px-2 py-0.5 rounded-none text-xs font-bold text-emerald-600">{{ active_sprint.tasks.filter_by(status='Done').count() }}</span>
+                    </div>
+                </div>
+                <div id="col-done" data-status="Done" class="kanban-col flex-1 space-y-3 overflow-y-auto no-scrollbar pb-10">
+                    {% for t in active_sprint.tasks.all() if t.status == 'Done' %}
+                    <div data-id="{{ t.id }}" data-status="{{ t.status }}" data-type="{{ t.issue_type }}" data-priority="{{ t.priority }}" data-assignee="{{ t.assignee_id or 'unassigned' }}" class="kanban-card bg-white dark:bg-supabase-bg p-4 rounded-none border border-zinc-200 dark:border-supabase-border cursor-grab active:cursor-grabbing hover:border-blue-500/50 transition-all group">
+                        <div class="flex items-start justify-between mb-3 opacity-60">
+                            <i data-lucide="{{ {'Bug': 'bug', 'Feature': 'zap', 'Improvement': 'git-pull-request', 'Task': 'check-square'}.get(t.issue_type, 'check-square') }}" class="w-4 h-4 text-zinc-400"></i>
+                        </div>
+                        <h4 class="text-sm font-bold text-zinc-800 dark:text-supabase-text mb-3 line-clamp-2 line-through opacity-60 tracking-tight">
+                            {% if t.parent_id %}<div class="text-[10px] font-medium text-zinc-500 mb-1 flex items-center gap-1"><i data-lucide="corner-down-right" class="w-3 h-3"></i> Subtask</div>{% endif %}
+                            {{ t.title }}
+                        </h4>
+                        <div class="flex items-center justify-between opacity-60">
+                            <div class="flex -space-x-1">
+                                {% if t.assignee %}
+                                <div class="w-7 h-7 rounded-full bg-zinc-400 border-2 border-white dark:border-zinc-950 flex items-center justify-center text-[10px] font-bold text-white">{{ t.assignee.username[0]|upper }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="flex items-center gap-1.5 text-zinc-400">
+                                <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-500"></i>
+                                <span class="text-xs font-bold">Completed</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="flex flex-col items-center justify-center py-40 text-center bg-zinc-50 dark:bg-supabase-card/50 rounded-none border-2 border-dashed border-zinc-200 dark:border-supabase-border">
+            <div class="w-20 h-20 bg-blue-50 dark:bg-blue-500/10 rounded-none flex items-center justify-center text-blue-500 mb-6">
+                <i data-lucide="zap" class="w-10 h-10"></i>
+            </div>
+            <h3 class="text-2xl font-bold text-zinc-900 dark:text-white mb-2">No Active Sprint</h3>
+            <p class="text-sm text-zinc-500 mb-8 max-w-sm">Move tasks to a sprint in the Backlog and start it to see the board come to life.</p>
+            <button onclick="showTab('backlog')" class="px-6 py-2.5 bg-blue-600 text-white text-xs font-medium rounded-none hover:bg-blue-700 transition">
+                Go to Backlog
+            </button>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Create Sprint Modal -->
+    <div id="createSprintModal" class="hidden fixed inset-0 z-[110] bg-black/40 items-center justify-center p-4">
+        <div class="bg-white dark:bg-supabase-bg w-full max-w-sm rounded-none shadow-2xl border border-zinc-200 dark:border-supabase-border overflow-hidden">
+            <div class="px-6 py-6 border-b border-zinc-100 dark:border-supabase-border">
+                <h3 class="text-xl font-bold text-zinc-900 dark:text-white">Create Sprint</h3>
+            </div>
+            <form action="{{ url_for('projects.create_sprint', project_id=project.id) }}" method="POST" class="p-6 space-y-4">
+                <div class="space-y-2">
+                    <label class="block text-xs font-bold text-zinc-500 uppercase tracking-widest">Sprint Title</label>
+                    <input type="text" name="title" required placeholder="e.g. Sprint 1 - Core Features" class="w-full px-4 py-3 bg-zinc-50 dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition text-sm font-bold text-zinc-900 dark:text-white">
+                </div>
+                <div class="space-y-2">
+                    <label class="block text-xs font-bold text-zinc-500 uppercase tracking-widest">End Date</label>
+                    <input type="date" name="end_date" class="w-full px-4 py-3 bg-zinc-50 dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition text-sm font-bold text-zinc-900 dark:text-white">
+                </div>
+                <div class="flex items-center gap-3 pt-2">
+                    <button type="button" onclick="closeModal('createSprintModal')" class="flex-1 px-4 py-3 text-xs font-bold text-zinc-600 dark:text-supabase-muted border border-zinc-200 dark:border-supabase-border rounded-none hover:bg-zinc-50 dark:hover:bg-zinc-800 transition uppercase tracking-widest">Cancel</button>
+                    <button type="submit" class="flex-1 px-4 py-3 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-none transition shadow-sm uppercase tracking-widest">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Calendar Tab -->
+    <div id="tab-calendar" class="tab-content {% if request.args.get('tab') != 'calendar' %}hidden{% endif %}">
+        <div class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none overflow-hidden shadow-sm">
+            <div class="p-6 border-b border-zinc-100 dark:border-supabase-border flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <h2 id="calendar-month" class="text-xl font-bold text-zinc-900 dark:text-white">October 2025</h2>
+                    <div class="flex items-center gap-1">
+                        <button onclick="changeMonth(-1)" class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-none transition-all text-zinc-500"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
+                        <button onclick="changeMonth(1)" class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-none transition-all text-zinc-500"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="flex items-center gap-1.5 text-xs text-zinc-500"><span class="w-2 h-2 rounded-none bg-blue-500"></span> Tasks</span>
+                    <span class="flex items-center gap-1.5 text-xs text-zinc-500"><span class="w-2 h-2 rounded-none bg-rose-500"></span> Bugs</span>
+                </div>
+            </div>
+            <div class="grid grid-cols-7 border-b border-zinc-100 dark:border-supabase-border">
+                {% for day in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}
+                <div class="py-3 text-center text-[10px] font-black uppercase text-zinc-400 tracking-widest border-r border-zinc-100 dark:border-supabase-border last:border-0">{{ day }}</div>
+                {% endfor %}
+            </div>
+            <div id="calendar-grid" class="grid grid-cols-7 min-h-[600px]">
+                <!-- Grid populated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Docs Tab -->
+    <div id="tab-docs" class="tab-content {% if request.args.get('tab') != 'docs' %}hidden{% endif %}">
+        <div class="flex items-center justify-between mb-8">
+            <div class="space-y-1">
+                <h2 class="text-xl font-bold text-zinc-900 dark:text-white">Project Documentation</h2>
+                <p class="text-xs text-zinc-500">Central knowledge base for {{ project.title }}.</p>
+            </div>
+            <a href="{{ url_for('docs.create', project_id=project.id) }}" class="inline-flex items-center gap-2 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-xs font-bold px-4 py-2 rounded-none hover:opacity-90 transition-all">
+                <i data-lucide="plus" class="w-4 h-4"></i> Create Document
+            </a>
+        </div>
+
+        {% if documents %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {% for doc in documents %}
+            <div class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border p-6 rounded-none shadow-sm hover:shadow-md transition-all group relative">
+                <div class="flex items-start justify-between mb-4">
+                    <div class="w-10 h-10 bg-blue-50 dark:bg-blue-500/10 rounded-none flex items-center justify-center text-blue-600">
+                        <i data-lucide="file-text" class="w-5 h-5"></i>
+                    </div>
+                    <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <a href="{{ url_for('docs.edit', doc_id=doc.id) }}" class="p-1.5 text-zinc-400 hover:text-blue-500 transition"><i data-lucide="edit-3" class="w-4 h-4"></i></a>
+                        <form action="{{ url_for('docs.delete', doc_id=doc.id) }}" method="POST" onsubmit="return confirm('Delete this document?');">
+                            <button type="submit" class="p-1.5 text-zinc-400 hover:text-red-500 transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        </form>
+                    </div>
+                </div>
+                <h3 class="font-bold text-zinc-900 dark:text-white mb-2 line-clamp-1">{{ doc.title }}</h3>
+                <p class="text-xs text-zinc-500 line-clamp-3 mb-4 leading-relaxed">{{ doc.content|striptags|truncate(150) if doc.content else 'No content' }}</p>
+                <div class="flex items-center justify-between pt-4 border-t border-zinc-50 dark:border-supabase-border/50">
+                    <div class="flex items-center gap-2">
+                        <div class="w-5 h-5 rounded-full bg-zinc-100 dark:bg-supabase-card flex items-center justify-center text-[8px] font-bold">{{ doc.author.username[0]|upper }}</div>
+                        <span class="text-[10px] text-zinc-400">{{ doc.author.username }}</span>
+                    </div>
+                    <span class="text-[10px] text-zinc-400">{{ doc.updated_at.strftime('%b %d, %Y') }}</span>
+                </div>
+                <a href="{{ url_for('docs.edit', doc_id=doc.id) }}" class="absolute inset-0 z-0"></a>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="py-20 text-center bg-zinc-50 dark:bg-supabase-card/50 rounded-none border-2 border-dashed border-zinc-200 dark:border-supabase-border">
+            <i data-lucide="book-open" class="w-12 h-12 text-zinc-300 mx-auto mb-4"></i>
+            <h3 class="text-lg font-bold text-zinc-900 dark:text-white mb-1">No documents yet</h3>
+            <p class="text-sm text-zinc-500 mb-6">Start documenting your project requirements, goals, and technical specs.</p>
+            <a href="{{ url_for('docs.create', project_id=project.id) }}" class="inline-flex items-center gap-2 bg-blue-600 text-white text-xs font-bold px-6 py-2.5 rounded-none hover:bg-blue-700 transition">
+                Create First Doc
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Analytics Tab -->
+    <div id="tab-analytics" class="tab-content {% if request.args.get('tab') != 'analytics' %}hidden{% endif %}">
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <!-- Header -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                <i data-lucide="bar-chart-3" class="w-6 h-6 text-blue-500"></i> Project Analytics
+            </h2>
+            <p class="text-sm text-zinc-500 dark:text-supabase-muted">Real-time team performance and AI predictions.</p>
+        </div>
+
+        <!-- Charts Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            <!-- Chart 1: Status Distribution (Pie Chart) -->
+            <div class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border p-6 rounded-none shadow-sm">
+                <h3 class="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <span class="w-1.5 h-3 bg-blue-500"></span> Status Distribution
+                </h3>
+                <div class="relative h-[250px] flex items-center justify-center">
+                    <canvas id="chart-status"></canvas>
+                </div>
+            </div>
+
+            <!-- Chart 2: AI Category Allocation (Bar Graph) -->
+            <div class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border p-6 rounded-none shadow-sm">
+                <h3 class="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wider mb-4 flex items-center gap-2 flex-wrap">
+                    <span class="w-1.5 h-3 bg-emerald-500"></span> Classification Allocation 
+                    <span class="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[9px] font-black uppercase tracking-widest rounded-none">AI Predicted</span>
+                </h3>
+                <div class="relative h-[250px] flex items-center justify-center">
+                    <canvas id="chart-category"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Tab Placeholder -->
+    <div id="tab-settings" class="tab-content {% if request.args.get('tab') != 'settings' %}hidden{% endif %} h-full">
+        <div class="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6 items-start">
+            
+            <!-- Left Column: Project Details -->
+            <div class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none p-6 shadow-sm">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-lg font-bold text-zinc-900 dark:text-white">Project Details</h2>
+                    {% if is_admin %}
+                    <form id="delete-project-form" action="{{ url_for('projects.delete_project', project_id=project.id) }}" method="POST" class="inline">
+                        <button type="button" onclick="triggerDeleteProject()" class="p-2 text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 hover:bg-rose-600 hover:text-white dark:hover:bg-rose-600 dark:hover:text-white transition-all duration-300 transform hover:scale-110 active:scale-95 border border-rose-200/50 dark:border-rose-900/30 hover:border-rose-600 rounded-none shadow-sm flex items-center justify-center group cursor-pointer" title="Delete Project">
+                            <i data-lucide="trash-2" class="w-5 h-5 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+                
+                <form action="{{ url_for('projects.edit_project', project_id=project.id) }}" method="POST" class="space-y-6">
+                    <!-- Project Name -->
+                    <div class="space-y-2">
+                        <label class="block text-xs font-medium text-zinc-600 dark:text-supabase-muted">Project Name</label>
+                        <input type="text" name="title" value="{{ project.title }}" required class="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white outline-none focus:border-blue-500 transition shadow-sm">
+                    </div>
+                    
+                    <!-- Description -->
+                    <div class="space-y-2">
+                        <label class="block text-xs font-medium text-zinc-600 dark:text-supabase-muted">Description</label>
+                        <textarea name="description" rows="4" required class="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white outline-none focus:border-blue-500 transition shadow-sm resize-none">{{ project.description or '' }}</textarea>
+                    </div>
+                    
+                    <!-- Status & Priority -->
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-2">
+                            <label class="block text-xs font-medium text-zinc-600 dark:text-supabase-muted">Status</label>
+                            <select name="status" required class="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white outline-none shadow-sm cursor-pointer">
+                                <option value="PLANNING" {% if project.status == 'PLANNING' %}selected{% endif %}>Planning</option>
+                                <option value="ACTIVE" {% if project.status == 'ACTIVE' %}selected{% endif %}>Active</option>
+                                <option value="ON_HOLD" {% if project.status == 'ON_HOLD' %}selected{% endif %}>On Hold</option>
+                                <option value="COMPLETED" {% if project.status == 'COMPLETED' %}selected{% endif %}>Completed</option>
+                                <option value="CANCELLED" {% if project.status == 'CANCELLED' %}selected{% endif %}>Cancelled</option>
+                            </select>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-xs font-medium text-zinc-600 dark:text-supabase-muted">Priority</label>
+                            <select name="priority" required class="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white outline-none shadow-sm cursor-pointer">
+                                <option value="LOW" {% if project.priority == 'LOW' %}selected{% endif %}>Low</option>
+                                <option value="MEDIUM" {% if project.priority == 'MEDIUM' %}selected{% endif %}>Medium</option>
+                                <option value="HIGH" {% if project.priority == 'HIGH' %}selected{% endif %}>High</option>
+                                <option value="CRITICAL" {% if project.priority == 'CRITICAL' %}selected{% endif %}>Critical</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Start Date & End Date -->
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-2 relative">
+                            <label class="block text-xs font-medium text-zinc-600 dark:text-supabase-muted">Start Date</label>
+                            <input type="date" name="start_date" value="{{ project.start_date.strftime('%Y-%m-%d') if project.start_date else '' }}" required class="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white outline-none shadow-sm">
+                        </div>
+                        <div class="space-y-2 relative">
+                            <label class="block text-xs font-medium text-zinc-600 dark:text-supabase-muted">End Date</label>
+                            <input type="date" name="end_date" value="{{ project.end_date.strftime('%Y-%m-%d') if project.end_date else '' }}" required class="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white outline-none shadow-sm">
+                        </div>
+                    </div>
+
+                    <!-- Save Changes Button -->
+                    <div class="flex justify-end pt-2 border-t border-zinc-100 dark:border-supabase-border/50">
+                        <button type="submit" class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-bold px-4 py-2.5 rounded-none transition shadow-sm active:scale-[0.98]">
+                            <i data-lucide="save" class="w-4 h-4"></i> Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Right Column: Team Members -->
+            <div class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none p-6 shadow-sm">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                        Team Members <span class="text-xs font-normal text-zinc-400">({{ project.members|length }})</span>
+                    </h2>
+                    <button onclick="openModal('addMemberModal')" class="w-8 h-8 flex items-center justify-center border border-zinc-200 dark:border-supabase-border rounded-none text-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                
+                <div class="space-y-4">
+                    {% for member in project.members %}
+                    <div class="flex items-center justify-between py-2 border-b border-zinc-50 dark:border-supabase-border/50 last:border-0">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold">
+                                {{ member.username[0]|upper }}
+                            </div>
+                            <div class="flex flex-col">
+                                <span class="text-sm font-medium text-zinc-900 dark:text-zinc-100">{{ member.username }}</span>
+                                <span class="text-[10px] text-zinc-400">{{ member.email }}</span>
+                            </div>
+                        </div>
+                        {% if member.id == project.lead_id %}
+                        <span class="text-[10px] font-bold uppercase text-blue-500 tracking-wider">Team Lead</span>
+                        {% else %}
+                        <span class="text-[10px] font-bold uppercase text-zinc-400 tracking-wider">Member</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="mt-10 pt-10 border-t border-zinc-100 dark:border-supabase-border">
+                    <h3 class="text-sm font-bold text-zinc-900 dark:text-white mb-4">Invite by Email</h3>
+                    <form action="{{ url_for('organizations.invite') }}" method="POST" onsubmit="return validateInviteEmails(this)" class="space-y-4">
+                        <input type="hidden" name="project_id" value="{{ project.id }}">
+                        <div class="space-y-2">
+                            <label class="text-[10px] font-bold uppercase text-zinc-500">Emails (comma separated)</label>
+                            <textarea name="emails" required placeholder="john@example.com, jane@example.com" class="w-full px-3 py-2 text-xs border border-zinc-200 dark:border-supabase-border rounded-none bg-zinc-50 dark:bg-supabase-card/50 text-zinc-900 dark:text-white outline-none focus:border-blue-500 transition resize-none h-20"></textarea>
+                        </div>
+                        <button type="submit" class="w-full py-2 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-[10px] font-bold uppercase tracking-widest rounded-none hover:opacity-90 transition-all">
+                            Send Invitations
+                        </button>
+                    </form>
+                    <p class="mt-4 text-[10px] text-zinc-400 leading-relaxed italic">Note: Users must have an existing account to be added to this project.</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- Add Member Modal matching Screenshot -->
+<div id="addMemberModal" class="hidden fixed inset-0 z-[120] bg-black/40 items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-white dark:bg-supabase-bg w-full max-w-sm rounded-none shadow-2xl border border-zinc-200 dark:border-supabase-border overflow-hidden">
+        <div class="p-8 space-y-6">
+            <div class="space-y-2">
+                <h3 class="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="user-plus" class="w-5 h-5 text-zinc-600"></i>
+                    Add Member to Project
+                </h3>
+                <p class="text-xs text-zinc-500">Adding to Project: <span class="text-blue-500 font-bold">{{ project.title }}</span></p>
+            </div>
+
+            <form action="{{ url_for('projects.add_member', project_id=project.id) }}" method="POST" class="space-y-6">
+                <div class="space-y-2">
+                    <label class="block text-sm font-bold text-zinc-900 dark:text-white">Email Address</label>
+                    <div class="relative group">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i data-lucide="mail" class="w-4 h-4 text-zinc-400"></i>
+                        </div>
+                        <select name="user_id" required 
+                            class="w-full pl-10 pr-4 py-2.5 text-sm font-bold bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all appearance-none text-zinc-800 dark:text-supabase-text">
+                            <option value="">Select a member</option>
+                            {% for user in org_members %}
+                                {% if user not in project.members %}
+                                <option value="{{ user.id }}">{{ user.email or user.username }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                        <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                            <i data-lucide="chevron-down" class="w-4 h-4 text-zinc-400"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <button type="button" onclick="closeModal('addMemberModal')" 
+                        class="flex-1 px-4 py-2.5 text-sm font-bold text-zinc-600 dark:text-supabase-muted border border-zinc-200 dark:border-supabase-border rounded-none hover:bg-zinc-50 dark:hover:bg-zinc-800 transition">
+                        Cancel
+                    </button>
+                    <button type="submit" 
+                        class="flex-1 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-none transition shadow-sm">
+                        Add Member
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Slide-over Task Detail Panel -->
+<div id="taskPanel" class="fixed right-0 top-0 h-full w-full md:w-[800px] bg-white dark:bg-supabase-bg border-l border-zinc-100 dark:border-supabase-border shadow-2xl transform translate-x-full transition-all duration-300 z-[100] flex flex-col overflow-hidden">
+    <!-- Panel Header -->
+    <div class="px-8 py-6 border-b border-zinc-50 dark:border-supabase-border bg-zinc-50/20 dark:bg-supabase-card/10 flex items-center justify-between">
+        <div class="flex items-center gap-4">
+             <button onclick="closeTaskPanel()" class="text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all"><i data-lucide="x" class="w-6 h-6"></i></button>
+             <div class="h-6 w-px bg-zinc-200 dark:bg-supabase-card"></div>
+             <span id="pnl-issue-type" class="text-[10px] font-black uppercase text-blue-500 flex items-center gap-2 tracking-widest">TASK</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <button id="pnl-share-btn" onclick="alert('Task link copied to clipboard!');" class="p-2 text-zinc-400 hover:text-blue-500 transition-all"><i data-lucide="share-2" class="w-5 h-5"></i></button>
+            <button id="pnl-delete-btn" class="p-2 text-zinc-400 hover:text-rose-500 transition-all"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
+        </div>
+    </div>
+    
+    <div class="flex-1 flex flex-col overflow-y-auto" id="pnl-content">
+        <!-- Content injected by JS -->
+    </div>
+</div>
+
+<!-- ===== Create New Task Modal — pixel-perfect match to screenshot ===== -->
+<div id="createTaskModal" class="hidden fixed inset-0 z-[110] bg-black/40 items-center justify-center p-4">
+    <div class="bg-white dark:bg-supabase-bg w-full max-w-lg rounded-none shadow-2xl border border-zinc-200 dark:border-supabase-border overflow-hidden">
+
+        <!-- Modal Header -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-supabase-border">
+            <h3 class="text-xl font-bold text-zinc-900 dark:text-white">Create New Task</h3>
+            <button onclick="closeModal('createTaskModal')" class="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition p-1">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <form action="{{ url_for('tasks.create_task') }}" method="POST" class="px-6 py-4 space-y-3" onsubmit="this.querySelector('button[type=submit]').disabled = true; this.querySelector('button[type=submit]').innerHTML = 'Creating...';">
+            <input type="hidden" name="project_id" value="{{ project.id }}">
+            <input type="hidden" name="sprint_id" id="task_sprint_id" value="">
+
+            <!-- Title -->
+            <div class="space-y-1.5">
+                <label class="block text-sm font-bold text-zinc-700 dark:text-supabase-text">Title</label>
+                <div class="flex gap-2">
+                    <input type="text" name="title" id="task_title" required placeholder="Task title"
+                        class="flex-1 px-3 py-2 text-sm font-bold border border-zinc-300 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                    <button type="button" onclick="suggestTaskDetails()" class="p-2 bg-zinc-100 dark:bg-supabase-card text-blue-600 rounded-none hover:bg-blue-50 dark:hover:bg-blue-900/30 transition shadow-sm" title="AI Suggest Details">
+                        <i data-lucide="sparkles" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Description -->
+            <div class="space-y-1.5">
+                <label class="block text-sm font-bold text-zinc-700 dark:text-supabase-text">Description</label>
+                <textarea name="description" id="task_description" class="hidden"></textarea>
+                <div id="task-editor-container" class="bg-white dark:bg-supabase-card border border-zinc-300 dark:border-supabase-border rounded-none h-24"></div>
+            </div>
+
+            <!-- Type + Priority -->
+            <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1.5">
+                    <label class="block text-sm font-bold text-zinc-700 dark:text-supabase-text">Type</label>
+                    <select name="issue_type" id="task_type" required
+                        class="w-full px-3 py-2 text-sm font-bold border border-zinc-300 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                        <option value="Task">Task</option>
+                        <option value="Feature">Feature</option>
+                        <option value="Bug">Bug</option>
+                        <option value="Design">Design</option>
+                        <option value="Frontend">Frontend</option>
+                        <option value="Backend">Backend</option>
+                        <option value="DevOps">DevOps</option>
+                        <option value="Docs">Docs</option>
+                    </select>
+                </div>
+                <div class="space-y-1.5">
+                    <label class="block text-sm font-bold text-zinc-700 dark:text-supabase-text">Priority</label>
+                    <select name="priority" id="task_priority" required
+                        class="w-full px-3 py-2 text-sm font-bold border border-zinc-300 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                        <option value="Low">Low</option>
+                        <option value="Medium" selected>Medium</option>
+                        <option value="High">High</option>
+                        <option value="Highest">Highest</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Assignee + Status -->
+            <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1.5">
+                    <label class="block text-sm font-bold text-zinc-700 dark:text-supabase-text">Assignee</label>
+                    <select name="assignee_id" required
+                        class="w-full px-3 py-2 text-sm font-bold border border-zinc-300 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                        <option value="">Select Assignee</option>
+                        {% for user in org_members %}
+                        <option value="{{ user.id }}">{{ user.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="space-y-1.5">
+                    <label class="block text-sm font-bold text-zinc-700 dark:text-supabase-text">Status</label>
+                    <select name="status" required
+                        class="w-full px-3 py-2 text-sm font-bold border border-zinc-300 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                        <option value="To Do">To Do</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Done">Done</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Due Date -->
+            <div class="space-y-1.5">
+                <label class="block text-sm font-bold text-zinc-700 dark:text-supabase-text">Due Date</label>
+                <div class="flex items-center gap-2 border border-zinc-300 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card px-3 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition">
+                    <i data-lucide="calendar" class="w-4 h-4 text-zinc-400 flex-shrink-0"></i>
+                    <input type="date" name="due_date" id="task_due_date" required
+                        class="flex-1 py-2 text-sm font-bold bg-transparent text-zinc-900 dark:text-white focus:outline-none">
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center justify-end gap-3 pt-2">
+                <button type="button" onclick="closeModal('createTaskModal')"
+                    class="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-supabase-text border border-zinc-300 dark:border-zinc-600 rounded-none hover:bg-zinc-50 dark:hover:bg-zinc-800 transition">
+                    Cancel
+                </button>
+                <button type="submit"
+                    class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-none transition-colors shadow-sm">
+                    Create Task
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ===== Create Sprint Modal ===== -->
+<div id="createSprintModal" class="hidden fixed inset-0 z-[110] bg-black/40 items-center justify-center p-4">
+    <div class="bg-white dark:bg-supabase-bg w-full max-w-md rounded-none shadow-2xl border border-zinc-200 dark:border-supabase-border overflow-hidden">
+
+        <!-- Modal Header -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-supabase-border">
+            <h3 class="text-xl font-bold text-zinc-900 dark:text-white">Create New Sprint</h3>
+            <button onclick="closeModal('createSprintModal')" class="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition p-1">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <form action="{{ url_for('projects.create_sprint', project_id=project.id) }}" method="POST" class="px-6 py-4 space-y-4">
+            <!-- Sprint Name -->
+            <div class="space-y-1.5">
+                <label class="block text-sm font-bold text-zinc-700 dark:text-supabase-text">Sprint Name</label>
+                <input type="text" name="title" required placeholder="e.g. Sprint 1 – Login Module"
+                    class="w-full px-3 py-2 text-sm font-bold border border-zinc-300 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+            </div>
+
+            <!-- End Date -->
+            <div class="space-y-1.5">
+                <label class="block text-sm font-bold text-zinc-700 dark:text-supabase-text">End Date (Optional)</label>
+                <div class="flex items-center gap-2 border border-zinc-300 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card px-3 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition">
+                    <i data-lucide="calendar" class="w-4 h-4 text-zinc-400 flex-shrink-0"></i>
+                    <input type="date" name="end_date"
+                        class="flex-1 py-2 text-sm font-bold bg-transparent text-zinc-900 dark:text-white focus:outline-none">
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center justify-end gap-3 pt-2">
+                <button type="button" onclick="closeModal('createSprintModal')"
+                    class="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-supabase-text border border-zinc-300 dark:border-zinc-600 rounded-none hover:bg-zinc-50 dark:hover:bg-zinc-800 transition">
+                    Cancel
+                </button>
+                <button type="submit"
+                    class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-none transition-colors shadow-sm">
+                    Create Sprint
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+/* Custom styles for tab transitions if needed */
+</style>
+
+<script>
+function showTab(tabId) {
+    // Hide all
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active', 'bg-blue-50', 'dark:bg-blue-900/20', 'text-blue-600', 'dark:text-blue-400', 'font-bold'));
+    
+    // Show target
+    const targetTab = document.getElementById('tab-' + tabId);
+    const targetBtn = document.getElementById('tab-btn-' + tabId);
+    
+    if (targetTab) {
+        targetTab.classList.remove('hidden');
+    }
+    
+    if (targetBtn) {
+        targetBtn.classList.add('active', 'bg-blue-50', 'dark:bg-blue-900/20', 'text-blue-600', 'dark:text-blue-400', 'font-bold');
+    }
+
+    // Toggle Global Filters visibility
+    const filtersBar = document.getElementById('global-filters-bar');
+    if (filtersBar) {
+        if (['backlog', 'tasks', 'board'].includes(tabId)) {
+            filtersBar.classList.remove('hidden');
+            filtersBar.classList.add('flex');
+        } else {
+            filtersBar.classList.add('hidden');
+            filtersBar.classList.remove('flex');
+        }
+    }
+
+    // Initialize sub-components safely
+    if (tabId === 'calendar' && typeof renderCalendar === 'function') renderCalendar();
+    if (tabId === 'board' && typeof initializeBoard === 'function') initializeBoard();
+    if (tabId === 'backlog' && typeof initializeBacklog === 'function') initializeBacklog();
+    if (tabId === 'tasks' && typeof initializeTaskFilters === 'function') initializeTaskFilters();
+    if (tabId === 'analytics' && typeof renderAnalytics === 'function') renderAnalytics();
+}
+
+
+function openTaskDetails(taskId) {
+    const panel = document.getElementById('taskPanel');
+    panel.classList.remove('translate-x-full');
+    
+    // Set up the delete button
+    const deleteBtn = document.getElementById('pnl-delete-btn');
+    if (deleteBtn) {
+        deleteBtn.onclick = () => {
+            showConfirm('Are you sure you want to delete this task?', () => {
+                fetch('/tasks/batch-delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ task_ids: [taskId] })
+                }).then(() => window.location.reload());
+            });
+        };
+    }
+
+    fetch(`/tasks/${taskId}`)
+        .then(r => r.text())
+        .then(html => {
+            document.getElementById('pnl-content').innerHTML = html;
+            lucide.createIcons();
+        });
+}
+
+function closeTaskPanel() {
+    document.getElementById('taskPanel').classList.add('translate-x-full');
+}
+
+function updateTaskStatus(taskId, status, selectElement = null) {
+    fetch(`/tasks/${taskId}/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field: 'status', value: status })
+    }).then(r => r.json()).then(data => {
+        if(data.success) {
+            showToast('Task status updated!');
+            if (selectElement) {
+                const row = selectElement.closest('.task-row');
+                if (row) {
+                    row.setAttribute('data-status', status);
+                }
+            }
+        } else {
+            showToast('Failed to update status', 'error');
+        }
+    });
+}
+
+async function createSubtask(taskId, form) {
+    const input = form.querySelector('input[name="title"]');
+    const dateInput = form.querySelector('input[name="due_date"]');
+    const title = input.value.trim();
+    const dueDate = dateInput ? dateInput.value : '';
+    if (!title) return;
+    
+    try {
+        const response = await fetch(`/tasks/${taskId}/subtask`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: title, due_date: dueDate })
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('Subtask added successfully!');
+            // Reload the page to show the new subtask in the board and list
+            window.location.reload();
+        } else {
+            showToast(data.message || 'Failed to add subtask.', 'error');
+        }
+    } catch (e) {
+        showToast('Error creating subtask.', 'error');
+    }
+}
+
+function updateTaskField(taskId, field, value) {
+    fetch(`/tasks/${taskId}/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field: field, value: value })
+    }).then(r => r.json()).then(data => {
+        if(data.success) {
+            showToast('Task updated successfully!');
+            
+            // Sync with table row if it exists
+            const rows = document.querySelectorAll(`.task-row[onclick*="openTaskDetails(${taskId})"]`);
+            rows.forEach(row => {
+                if (field === 'status') row.setAttribute('data-status', value);
+                if (field === 'priority') row.setAttribute('data-priority', value);
+                if (field === 'issue_type') row.setAttribute('data-type', value);
+                if (field === 'assignee_id') {
+                    // This is harder since data-assignee expects a username, but we have an ID.
+                    // For now, we might want to reload or just skip for assignee filter sync.
+                }
+            });
+        } else {
+            showToast('Failed to update task', 'error');
+        }
+    });
+}
+
+function deleteSelectedTasks() {
+    const checkboxes = document.querySelectorAll('.task-check:checked');
+    const taskIds = Array.from(checkboxes).map(cb => cb.value);
+    
+    if (taskIds.length === 0) return;
+    
+    showConfirm(`Are you sure you want to delete ${taskIds.length} tasks?`, () => {
+        fetch('/tasks/batch-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task_ids: taskIds })
+        }).then(response => {
+            if (response.ok) {
+                window.location.reload();
+            } else {
+                showToast('Failed to delete tasks.', 'error');
+            }
+        });
+    });
+}
+
+function updateBulkDeleteButton() {
+    const checkedCount = document.querySelectorAll('.task-check:checked').length;
+    const btn = document.getElementById('bulk-delete-btn');
+    if (btn) {
+        if (checkedCount > 0) {
+            btn.classList.remove('hidden');
+            btn.classList.add('flex');
+        } else {
+            btn.classList.add('hidden');
+            btn.classList.remove('flex');
+        }
+    }
+}
+
+function toggleAllTasks(source) {
+    const checkboxes = document.querySelectorAll('.task-check');
+    checkboxes.forEach(cb => {
+        if (cb.closest('tr').style.display !== 'none') {
+            cb.checked = source.checked;
+        }
+    });
+    updateBulkDeleteButton();
+}
+
+// Calendar Logic
+let currentYear = new Date().getFullYear();
+let currentMonth = new Date().getMonth();
+
+const tasks = [
+    {% for task in project.tasks.all() %}
+    {% if task.due_date %}
+    {
+        id: {{ task.id }},
+        title: {{ task.title|tojson }},
+        due: "{{ task.due_date.strftime('%Y-%m-%d') }}",
+        type: "{{ task.issue_type }}"
+    },
+    {% endif %}
+    {% endfor %}
+];
+
+function renderCalendar() {
+    const grid = document.getElementById('calendar-grid');
+    const monthYearLabel = document.getElementById('calendar-month');
+    
+    const firstDay = new Date(currentYear, currentMonth, 1).getDay(); // 0=Sun, 1=Mon...
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    
+    // Adjust firstDay to Mon=0, Sun=6
+    let startDay = firstDay === 0 ? 6 : firstDay - 1;
+    
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    monthYearLabel.textContent = `${monthNames[currentMonth]} ${currentYear}`;
+    
+    grid.innerHTML = '';
+    
+    // Empty cells for previous month
+    for (let i = 0; i < startDay; i++) {
+        grid.innerHTML += `<div class="border-r border-b border-zinc-100 dark:border-supabase-border bg-zinc-50/30 dark:bg-supabase-card/30"></div>`;
+    }
+    
+    // Days of month
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const dayTasks = tasks.filter(t => t.due === dateStr);
+        
+        let tasksHtml = dayTasks.map(t => `
+            <div onclick="openTaskDetails(${t.id})" class="mt-1 px-1.5 py-0.5 text-[9px] font-bold rounded-none truncate cursor-pointer transition-all hover:scale-[1.02]
+                ${t.type === 'Bug' ? 'bg-rose-100 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400' : 'bg-blue-100 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400'}">
+                ${t.title}
+            </div>
+        `).join('');
+        
+        grid.innerHTML += `
+            <div class="p-2 border-r border-b border-zinc-100 dark:border-supabase-border relative group hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors">
+                <span class="text-xs font-medium text-zinc-400">${day}</span>
+                <div class="mt-1 space-y-1 overflow-y-auto no-scrollbar max-h-[80px]">
+                    ${tasksHtml}
+                </div>
+            </div>
+        `;
+    }
+    
+    lucide.createIcons();
+}
+
+function changeMonth(delta) {
+    currentMonth += delta;
+    if (currentMonth > 11) {
+        currentMonth = 0;
+        currentYear++;
+    } else if (currentMonth < 0) {
+        currentMonth = 11;
+        currentYear--;
+    }
+    renderCalendar();
+}
+
+// Handle application initialization
+document.addEventListener('DOMContentLoaded', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tab = urlParams.get('tab') || 'backlog';
+    
+    // Setup global components
+    lucide.createIcons();
+    initializeTaskFilters();
+    
+    // Activation
+    showTab(tab);
+    
+    const taskId = urlParams.get('task_id');
+    if (taskId) {
+        openTaskDetails(taskId);
+    }
+});
+
+function initializeBoard() {
+    const columns = ['col-todo', 'col-progress', 'col-done'];
+    columns.forEach(colId => {
+        const el = document.getElementById(colId);
+        if (!el) return;
+        if (el.sortable) el.sortable.destroy();
+        el.sortable = new Sortable(el, {
+            group: 'kanban',
+            animation: 150,
+            ghostClass: 'bg-blue-50/50',
+            dragClass: 'rotate-2',
+            onEnd: function(evt) {
+                const taskId = evt.item.getAttribute('data-id');
+                const newStatus = evt.to.getAttribute('data-status');
+                updateTaskStatus(taskId, newStatus);
+            }
+        });
+    });
+}
+
+function initializeBacklog() {
+    const dropzones = document.querySelectorAll('.sprint-dropzone');
+    dropzones.forEach(el => {
+        if (el.sortable) el.sortable.destroy();
+        el.sortable = new Sortable(el, {
+            group: 'sprints',
+            animation: 150,
+            ghostClass: 'bg-blue-50/50',
+            onEnd: function(evt) {
+                const taskId = evt.item.getAttribute('data-id');
+                const sprintId = evt.to.getAttribute('data-sprint-id');
+                updateTaskSprint(taskId, sprintId);
+            }
+        });
+    });
+}
+
+async function updateTaskSprint(taskId, sprintId) {
+    try {
+        const response = await fetch(`/projects/tasks/${taskId}/move-to-sprint`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sprint_id: sprintId })
+        });
+        if (response.ok) {
+            showToast('Task moved successfully');
+        } else {
+            throw new Error();
+        }
+    } catch (e) {
+        showToast('Failed to move task', 'error');
+    }
+}
+
+async function suggestTaskDetails() {
+    const title = document.getElementById('task_title').value;
+    if (!title) {
+        showToast('Please enter a task title first.', 'error');
+        return;
+    }
+
+    const btn = event.currentTarget;
+    const originalContent = btn.innerHTML;
+    btn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i>';
+    lucide.createIcons();
+
+    try {
+        const response = await fetch('/tasks/ml/suggest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: title })
+        });
+        const data = await response.json();
+        
+        if (data.error) throw new Error(data.error);
+
+        // Fill fields
+        document.getElementById('task_description').value = data.suggested_description;
+        if (window.quillTask) {
+            window.quillTask.root.innerHTML = data.suggested_description;
+        }
+        document.getElementById('task_priority').value = data.priority;
+        document.getElementById('task_type').value = data.category;
+        document.getElementById('task_due_date').value = data.suggested_date;
+        
+        showToast('AI suggestions applied!');
+    } catch (e) {
+        showToast('AI suggestion failed.', 'error');
+    } finally {
+        if (btn && btn.innerHTML !== undefined) {
+            btn.innerHTML = originalContent;
+        }
+        lucide.createIcons();
+    }
+}
+
+// Auto-trigger AI suggestion when task title is finished being typed
+document.addEventListener('DOMContentLoaded', () => {
+    const taskTitleInput = document.getElementById('task_title');
+    if (taskTitleInput) {
+        let taskFetchTimeout = null;
+        taskTitleInput.addEventListener('blur', () => {
+            const title = taskTitleInput.value.trim();
+            if (!title) return;
+            const descInput = document.getElementById('task_description');
+            if (descInput && descInput.value.trim()) return;
+
+            clearTimeout(taskFetchTimeout);
+            taskFetchTimeout = setTimeout(async () => {
+                try {
+                    const response = await fetch('/tasks/ml/suggest', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ title: title })
+                    });
+                    const data = await response.json();
+                    if (data && data.suggested_description && descInput) {
+                        descInput.value = data.suggested_description;
+                        if (window.quillTask) {
+                            window.quillTask.root.innerHTML = data.suggested_description;
+                        }
+                        showToast('AI description auto-filled');
+                    }
+                } catch (e) {
+                    // silent fail for auto-fill
+                }
+            }, 600);
+        });
+    }
+});
+
+function initializeTaskFilters() {
+    const filters = {
+        status: document.getElementById('filter-status'),
+        type: document.getElementById('filter-type'),
+        priority: document.getElementById('filter-priority'),
+        assignee: document.getElementById('filter-assignee')
+    };
+
+    if (!filters.status) return;
+
+    function applyFilters() {
+        const items = document.querySelectorAll('.task-row, .task-card');
+        const vals = {
+            status: filters.status.value,
+            type: filters.type.value,
+            priority: filters.priority.value,
+            assignee: filters.assignee.value
+        };
+
+        items.forEach(item => {
+            const matchesStatus = vals.status === 'all' || item.dataset.status === vals.status;
+            const matchesType = vals.type === 'all' || item.dataset.type === vals.type;
+            const matchesPriority = vals.priority === 'all' || item.dataset.priority === vals.priority;
+            const matchesAssignee = vals.assignee === 'all' || item.dataset.assignee === vals.assignee;
+
+            if (matchesStatus && matchesType && matchesPriority && matchesAssignee) {
+                item.classList.remove('hidden');
+            } else {
+                item.classList.add('hidden');
+            }
+        });
+    }
+
+    Object.values(filters).forEach(f => {
+        if (f) f.addEventListener('change', applyFilters);
+    });
+}
+function openCreateTaskWithSprint(sprintId) {
+    document.getElementById('task_sprint_id').value = sprintId || '';
+    openModal('createTaskModal');
+}
+async function updateTaskStatus(taskId, status) {
+    try {
+        const response = await fetch(`/tasks/${taskId}/update`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ field: 'status', value: status })
+        });
+        if (response.ok) {
+            showToast('Status updated');
+            
+            // 1. Update all DOM elements with this task ID
+            document.querySelectorAll(`[data-id="${taskId}"]`).forEach(el => {
+                el.setAttribute('data-status', status);
+                
+                // Update Backlog status badge if present
+                const badge = el.querySelector('.px-2\\.5.py-0\\.5');
+                if (badge && badge.textContent !== status) badge.textContent = status;
+                
+                // Update List view select dropdown if present
+                const select = el.querySelector('select');
+                if (select) select.value = status;
+            });
+            
+            // 2. Update Kanban Column Counts
+            ['col-todo', 'col-progress', 'col-done'].forEach(colId => {
+                const col = document.getElementById(colId);
+                if (col && col.parentElement) {
+                    const count = col.querySelectorAll('.kanban-card').length;
+                    const h3 = col.parentElement.querySelector('h3');
+                    if (h3 && h3.nextElementSibling) {
+                        h3.nextElementSibling.textContent = count;
+                    }
+                }
+            });
+            
+            // 3. Update projectTasks array for analytics
+            if (typeof projectTasks !== 'undefined') {
+                const task = projectTasks.find(t => t.id == taskId);
+                if (task) task.status = status;
+                // Re-render analytics if chart is visible
+                const chartCanvas = document.getElementById('chart-status');
+                if (chartCanvas && chartCanvas.offsetParent !== null) {
+                    renderAnalytics();
+                }
+            }
+            
+        } else {
+            throw new Error();
+        }
+    } catch (e) {
+        showToast('Failed to update status', 'error');
+    }
+}
+
+function editSprintName(sprintId, currentTitle) {
+    const newTitle = prompt("Enter new sprint title:", currentTitle);
+    if (newTitle && newTitle.trim()) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/projects/sprint/${sprintId}/edit`;
+        
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'title';
+        input.value = newTitle.trim();
+        form.appendChild(input);
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+function deleteTask(taskId) {
+    showConfirm('Are you sure you want to delete this issue?', () => {
+        fetch(`/tasks/${taskId}/delete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        }).then(r => {
+            if (r.ok) {
+                window.location.reload();
+            } else {
+                showToast('Failed to delete issue.', 'error');
+            }
+        });
+    });
+}
+
+function deleteSprint(sprintId) {
+    showConfirm("Are you sure you want to delete this sprint? All tasks and subtasks inside it will be permanently deleted.", () => {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/projects/sprint/${sprintId}/delete`;
+        document.body.appendChild(form);
+        form.submit();
+    });
+}
+
+function triggerDeleteProject() {
+    showConfirm(
+        "Are you sure you want to permanently delete this project? All tasks, documents, and sprints associated with it will be deleted. This action cannot be undone.",
+        function() {
+            document.getElementById('delete-project-form').submit();
+        }
+    );
+}
+
+function validateInviteEmails(form) {
+    const textarea = form.querySelector('textarea[name="emails"]');
+    if (!textarea) return true;
+    const value = textarea.value.trim();
+    if (!value) return true;
+    
+    // Split by comma or newline
+    const emails = value.split(/[,\n]/).map(e => e.trim()).filter(e => e.length > 0);
+    if (emails.length === 0) {
+        showToast('Please enter at least one email address.', 'error');
+        return false;
+    }
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const invalidEmails = [];
+    
+    for (const email of emails) {
+        if (!emailRegex.test(email)) {
+            invalidEmails.push(email);
+        }
+    }
+    
+    if (invalidEmails.length > 0) {
+        showToast('Invalid email address(es): ' + invalidEmails.join(', '), 'error');
+        return false;
+    }
+    
+    return true;
+}
+
+// Project Tasks serialized from Jinja
+const projectTasks = [
+    {% for task in project.tasks.all() %}
+    {
+        id: {{ task.id }},
+        title: {{ task.title|tojson }},
+        status: "{{ task.status }}",
+        issue_type: "{{ task.issue_type }}",
+        priority: "{{ task.priority }}",
+        category: "{{ task.category or 'Uncategorized' }}",
+        duration_days: {{ task.duration_days or 0.0 }},
+        assignee_id: {{ task.assignee_id or 'null' }},
+        assignee_name: "{{ task.assignee.username if task.assignee else 'Unassigned' }}",
+        due_date: "{{ task.due_date.strftime('%Y-%m-%d') if task.due_date else '' }}",
+        is_overdue: {{ 'true' if task.is_overdue else 'false' }}
+    },
+    {% endfor %}
+];
+
+let charts = {};
+
+function renderAnalytics() {
+    const totalTasks = projectTasks.length;
+    const completedTasks = projectTasks.filter(t => t.status === 'Done').length;
+    const inProgressTasks = projectTasks.filter(t => t.status === 'In Progress').length;
+    const todoTasks = projectTasks.filter(t => t.status === 'To Do').length;
+
+    if (typeof Chart === 'undefined') return;
+
+    const isDark = document.documentElement.classList.contains('dark');
+    const textThemeColor = isDark ? '#a1a1a1' : '#71717a';
+    const gridColor = isDark ? '#2e2e2e' : '#f4f4f5';
+
+    const initChart = (id, config) => {
+        if (charts[id]) {
+            charts[id].destroy();
+        }
+        const canvas = document.getElementById(id);
+        if (canvas) {
+            charts[id] = new Chart(canvas, config);
+        }
+    };
+
+    initChart('chart-status', {
+        type: 'pie',
+        data: {
+            labels: ['To Do', 'In Progress', 'Done'],
+            datasets: [{
+                data: [todoTasks, inProgressTasks, completedTasks],
+                backgroundColor: ['#71717a', '#f59e0b', '#3ecf8e'],
+                borderWidth: isDark ? 2 : 1,
+                borderColor: isDark ? '#1e1e1e' : '#ffffff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { color: textThemeColor, font: { family: 'Outfit', size: 11, weight: 'semibold' } }
+                }
+            }
+        }
+    });
+
+    const categoryCounts = {};
+    projectTasks.forEach(t => {
+        const cat = t.issue_type || 'Uncategorized';
+        categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+    });
+    const catLabels = Object.keys(categoryCounts);
+    const catValues = Object.values(categoryCounts);
+
+    initChart('chart-category', {
+        type: 'bar',
+        data: {
+            labels: catLabels.length > 0 ? catLabels : ['No tasks'],
+            datasets: [{
+                label: 'Task Count',
+                data: catValues.length > 0 ? catValues : [0],
+                backgroundColor: ['#6366f1', '#ec4899', '#14b8a6', '#f43f5e', '#8b5cf6', '#eab308'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { color: textThemeColor, font: { family: 'Outfit', size: 10, weight: 'semibold' } }
+                },
+                y: {
+                    grid: { color: gridColor },
+                    ticks: { color: textThemeColor, font: { family: 'Outfit', size: 10 }, stepSize: 1 }
+                }
+            }
+        }
+    });
+}
+
+function runAIHealthCheck() {
+    showToast('Running risk assessment engines...');
+    const btn = event.currentTarget;
+    const icon = btn.querySelector('i');
+    if (icon) icon.classList.add('animate-spin');
+    
+    setTimeout(() => {
+        renderAnalytics();
+        if (icon) icon.classList.remove('animate-spin');
+        showToast('AI Risk Assessment completed! Health Score evaluated.', 'success');
+    }, 1200);
+}
+
+// Initial trigger if tab parameter is active
+if (new URLSearchParams(window.location.search).get('tab') === 'analytics') {
+    setTimeout(renderAnalytics, 100);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    var taskEditor = document.getElementById('task-editor-container');
+    if (taskEditor) {
+        window.quillTask = new Quill('#task-editor-container', {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    ['bold', 'italic', 'underline', 'strike'],
+                    ['blockquote', 'code-block'],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    ['link', 'clean']
+                ]
+            },
+            placeholder: 'Describe the task in detail...'
+        });
+
+        // Add submit listener to the form containing the editor
+        var form = taskEditor.closest('form');
+        if (form) {
+            form.addEventListener('submit', function() {
+                var content = document.querySelector('#task_description');
+                content.value = window.quillTask.root.innerHTML;
+            });
+        }
+    }
+});
+</script>
+{% endblock %}

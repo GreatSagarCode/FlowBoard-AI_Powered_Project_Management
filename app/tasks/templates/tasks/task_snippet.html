@@ -1,0 +1,140 @@
+<!-- Task Detail Snippet for Slide-over Panel -->
+<div class="px-8 py-8 space-y-10">
+    <!-- Title & Description -->
+    <div class="space-y-4">
+        <h2 class="text-2xl font-black text-zinc-900 dark:text-white leading-tight">{{ task.title }}</h2>
+        <div class="prose dark:prose-invert max-w-none text-zinc-600 dark:text-zinc-400 text-sm leading-relaxed">
+            {{ task.description or 'No description provided.' }}
+        </div>
+    </div>
+
+    <!-- Properties Grid -->
+    <div class="grid grid-cols-2 gap-y-8 gap-x-12 border-y border-zinc-50 dark:border-zinc-900 py-10">
+        <div class="space-y-2">
+            <span class="text-[10px] font-black uppercase text-zinc-400 tracking-widest">Status</span>
+            <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full {% if task.status == 'Done' %}bg-emerald-500{% elif task.status == 'In Progress' %}bg-amber-500{% else %}bg-zinc-400{% endif %}"></span>
+                <span class="text-sm font-bold text-zinc-900 dark:text-white">{{ task.status }}</span>
+            </div>
+        </div>
+        <div class="space-y-2">
+            <span class="text-[10px] font-black uppercase text-zinc-400 tracking-widest">Priority</span>
+            <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-[10px] font-black rounded uppercase border border-zinc-200 dark:border-zinc-700">
+                    {{ task.priority }}
+                </span>
+            </div>
+        </div>
+        <div class="space-y-2">
+            <span class="text-[10px] font-black uppercase text-zinc-400 tracking-widest">Assignee</span>
+            <div class="flex items-center gap-3">
+                <img src="https://ui-avatars.com/api/?name={{ task.assignee.username if task.assignee else '?' }}&background=6366f1&color=fff" class="w-6 h-6 rounded-lg">
+                <span class="text-sm font-bold text-zinc-700 dark:text-zinc-300">{{ task.assignee.username if task.assignee else 'Unassigned' }}</span>
+            </div>
+        </div>
+        <div class="space-y-2">
+            <span class="text-[10px] font-black uppercase text-zinc-400 tracking-widest">Due Date</span>
+            <div class="flex items-center gap-2 text-sm font-bold text-zinc-700 dark:text-zinc-300">
+                <i data-lucide="calendar" class="w-4 h-4 text-zinc-400"></i>
+                {{ task.due_date.strftime('%d %B, %Y') if task.due_date else 'No date' }}
+            </div>
+        </div>
+        {% if task.category %}
+        <div class="space-y-2">
+            <span class="text-[10px] font-black uppercase text-zinc-400 tracking-widest">AI Category</span>
+            <div class="flex items-center gap-2 text-xs font-bold text-blue-500">
+                <i data-lucide="tag" class="w-4 h-4"></i>
+                {{ task.category }}
+            </div>
+        </div>
+        {% endif %}
+        {% if task.duration_days %}
+        <div class="space-y-2">
+            <span class="text-[10px] font-black uppercase text-zinc-400 tracking-widest">Est. Duration</span>
+            <div class="flex items-center gap-2 text-xs font-bold text-emerald-500">
+                <i data-lucide="clock" class="w-4 h-4"></i>
+                {{ task.duration_days }}d
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Subtasks Section -->
+    <div class="space-y-4">
+        <h3 class="text-sm font-black uppercase tracking-widest text-zinc-900 dark:text-white flex items-center gap-2">
+            <i data-lucide="list-checks" class="w-4 h-4 text-blue-500"></i>
+            Subtasks
+            <span class="text-[10px] font-bold text-zinc-400 normal-case tracking-normal">({{ task.subtasks|length }})</span>
+        </h3>
+        
+        {% if task.subtasks %}
+        <div class="space-y-2">
+            {% for subtask in task.subtasks %}
+            <div class="flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 rounded-lg group hover:border-blue-500/30 transition-all">
+                <div class="flex items-center gap-3 flex-1">
+                    <span class="w-2 h-2 rounded-full flex-shrink-0 {% if subtask.status == 'Done' %}bg-emerald-500{% elif subtask.status == 'In Progress' %}bg-amber-500{% else %}bg-zinc-400{% endif %}"></span>
+                    <span class="text-sm font-medium text-zinc-800 dark:text-zinc-200 {% if subtask.status == 'Done' %}line-through opacity-60{% endif %}">{{ subtask.title }}</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    {% if subtask.category %}
+                    <span class="text-[9px] font-bold uppercase px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-500 rounded border border-blue-200/50 dark:border-blue-800/50">{{ subtask.category }}</span>
+                    {% endif %}
+                    {% if subtask.due_date %}
+                    <span class="text-[10px] font-medium text-zinc-400">{{ subtask.due_date.strftime('%d %b') }}</span>
+                    {% endif %}
+                    <span class="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded {% if subtask.status == 'Done' %}bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400{% elif subtask.status == 'In Progress' %}bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400{% else %}bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400{% endif %}">{{ subtask.status }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-xs text-zinc-400 italic">No subtasks yet.</p>
+        {% endif %}
+
+        <!-- Add Subtask Form (only show for non-subtasks) -->
+        {% if not task.parent_id %}
+        <form onsubmit="event.preventDefault(); createSubtask({{ task.id }}, this);" class="flex gap-2 mt-2">
+            <div class="flex-1 flex gap-2">
+                <input type="text" name="title" placeholder="Add a subtask..." required
+                    class="flex-1 px-3 py-2 text-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition placeholder-zinc-400 text-zinc-900 dark:text-white">
+                <input type="date" name="due_date" {% if task.due_date %}max="{{ task.due_date.strftime('%Y-%m-%d') }}"{% endif %}
+                    class="px-2 py-2 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition text-zinc-700 dark:text-zinc-300 w-36">
+            </div>
+            <button type="submit" class="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition active:scale-95 text-xs font-bold">
+                <i data-lucide="plus" class="w-4 h-4"></i>
+            </button>
+        </form>
+        {% endif %}
+    </div>
+
+    <!-- Activity / Comments Section -->
+    <div class="space-y-6">
+        <h3 class="text-sm font-black uppercase tracking-widest text-zinc-900 dark:text-white">Activity List</h3>
+        <div class="space-y-6">
+            {% for comment in task.comments %}
+            <div class="flex gap-4">
+                <img src="https://ui-avatars.com/api/?name={{ comment.author.username }}&background=6366f1&color=fff" class="w-8 h-8 rounded-lg flex-shrink-0">
+                <div class="space-y-1 flex-1">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-zinc-900 dark:text-white">{{ comment.author.username }}</span>
+                        <span class="text-[10px] text-zinc-400 font-medium">{{ comment.created_at.strftime('%H:%M %p') }}</span>
+                    </div>
+                    <div class="text-sm text-zinc-600 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-900/50 p-3 rounded-2xl rounded-tl-none border border-zinc-100 dark:border-zinc-800">
+                        {{ comment.content }}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Add Comment Form -->
+        <form action="{{ url_for('tasks.add_comment', task_id=task.id) }}" method="POST" class="mt-8">
+            <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-2 flex gap-2 shadow-sm focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
+                <input type="text" name="content" placeholder="Share your thoughts..." class="flex-1 bg-transparent border-none outline-none px-3 text-sm text-zinc-900 dark:text-white placeholder-zinc-500">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white p-2 rounded-xl transition active:scale-95 shadow-lg shadow-blue-500/20">
+                    <i data-lucide="send" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

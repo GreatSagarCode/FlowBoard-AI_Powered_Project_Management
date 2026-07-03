@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+
+{% block top_header %}
+    <span class="text-zinc-900 dark:text-white font-bold">Settings</span>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-7 max-w-[900px] mx-auto">
+    <!-- Header -->
+    <div>
+        <h1 class="text-2xl font-extrabold text-zinc-900 dark:text-white tracking-tight">Workspace Settings</h1>
+        <p class="text-zinc-500 dark:text-supabase-muted mt-1 text-sm">Manage settings for <span class="font-semibold text-zinc-700 dark:text-supabase-text">{{ org.name }}</span></p>
+    </div>
+
+    {% if not is_admin %}
+    <div class="px-5 py-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-none text-sm text-amber-700 dark:text-amber-400 flex items-center gap-3">
+        <i data-lucide="alert-triangle" class="w-5 h-5 flex-shrink-0"></i>
+        You have view-only access. Only workspace Admins can modify settings.
+    </div>
+    {% endif %}
+
+    <!-- General Settings Form -->
+    <div class="bg-white dark:bg-supabase-bg border border-zinc-100 dark:border-supabase-border rounded-none shadow-sm overflow-hidden">
+        <div class="px-6 py-5 border-b border-zinc-100 dark:border-supabase-border">
+            <h2 class="text-sm font-bold text-zinc-900 dark:text-white">General</h2>
+            <p class="text-xs text-zinc-400 mt-1">Basic workspace information</p>
+        </div>
+        <form action="{{ url_for('main.settings') }}" method="POST" enctype="multipart/form-data" class="p-6 space-y-6">
+            <!-- Logo -->
+            <div class="flex items-center gap-6">
+                <div id="settings-logo-preview" class="w-16 h-16 rounded-none bg-red-600 flex items-center justify-center text-white font-bold text-xl flex-shrink-0 overflow-hidden">
+                    {% if org.logo_path %}
+                    <img src="{{ url_for('static', filename=org.logo_path) }}" class="w-full h-full object-cover">
+                    {% else %}
+                    {{ org.name[0]|upper }}
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="cursor-pointer bg-white dark:bg-supabase-card border border-zinc-300 dark:border-supabase-border hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-supabase-text px-4 py-2 rounded-none text-sm font-medium transition shadow-sm inline-block {% if not is_admin %}opacity-50 pointer-events-none{% endif %}">
+                        Change Logo
+                        <input type="file" name="logo" class="hidden" accept="image/*" onchange="previewSettingsLogo(this)" {% if not is_admin %}disabled{% endif %}>
+                    </label>
+                    <p class="text-xs text-zinc-400 mt-1.5">Recommended: square image, max 10MB</p>
+                </div>
+            </div>
+
+            <!-- Workspace Name -->
+            <div class="space-y-2">
+                <label class="block text-sm font-semibold text-zinc-700 dark:text-supabase-text">Workspace Name</label>
+                <input type="text" name="name" value="{{ org.name }}"
+                    class="w-full px-4 py-3 rounded-none border border-zinc-200 dark:border-supabase-border bg-white dark:bg-supabase-card text-zinc-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition text-sm {% if not is_admin %}opacity-60 cursor-not-allowed{% endif %}"
+                    {% if not is_admin %}readonly{% endif %}>
+            </div>
+
+            <!-- Slug (read-only) -->
+            <div class="space-y-2">
+                <label class="block text-sm font-semibold text-zinc-700 dark:text-supabase-text">Workspace Slug</label>
+                <input type="text" value="{{ org.slug }}" readonly
+                    class="w-full px-4 py-3 rounded-none border border-zinc-200 dark:border-supabase-border bg-zinc-50 dark:bg-supabase-card/50 text-zinc-500 dark:text-supabase-muted outline-none text-sm cursor-not-allowed">
+                <p class="text-xs text-zinc-400">Slug cannot be changed once set.</p>
+            </div>
+
+            {% if is_admin %}
+            <div class="flex justify-end pt-2">
+                <button type="submit" class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-none font-bold text-sm transition shadow-sm active:scale-[0.98]">
+                    <i data-lucide="save" class="w-4 h-4"></i> Save Changes
+                </button>
+            </div>
+            {% endif %}
+        </form>
+    </div>
+
+    <!-- Members List -->
+    <div class="bg-white dark:bg-supabase-bg border border-zinc-100 dark:border-supabase-border rounded-none shadow-sm overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-5 border-b border-zinc-100 dark:border-supabase-border">
+            <div>
+                <h2 class="text-sm font-bold text-zinc-900 dark:text-white">Members</h2>
+                <p class="text-xs text-zinc-400 mt-1">{{ memberships|length }} member{{ 's' if memberships|length != 1 else '' }} in this workspace</p>
+            </div>
+            {% if is_admin %}
+            <button onclick="openModal('settingsInviteModal')" class="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-500 transition">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Member
+            </button>
+            {% endif %}
+        </div>
+        <div>
+            {% for m in memberships %}
+            <div class="flex items-center justify-between px-6 py-4 {% if not loop.last %}border-b border-zinc-50 dark:border-supabase-border{% endif %} hover:bg-zinc-50 dark:hover:bg-zinc-900/40 transition">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm">
+                        {{ m.user.username[0]|upper }}
+                    </div>
+                    <div>
+                        <div class="text-sm font-semibold text-zinc-900 dark:text-white">{{ m.user.username }}
+                            {% if m.user.id == current_user.id %}<span class="ml-1 text-[9px] bg-zinc-100 dark:bg-supabase-card text-zinc-500 px-1.5 py-0.5 rounded-none font-bold">You</span>{% endif %}
+                        </div>
+                        <div class="text-xs text-zinc-400">{{ m.user.email }}</div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="inline-flex items-center px-2.5 py-1 rounded-none text-[10px] font-bold uppercase
+                        {% if m.role == 'ADMIN' %}bg-purple-100 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400
+                        {% elif m.role == 'CONTRIBUTOR' %}bg-blue-100 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400
+                        {% else %}bg-zinc-100 dark:bg-supabase-card text-zinc-600 dark:text-supabase-muted{% endif %}">
+                        {{ m.role }}
+                    </span>
+                    {% if is_admin and m.role != 'ADMIN' %}
+                    <form action="{{ url_for('main.team_remove', user_id=m.user.id) }}" method="POST" class="inline" onsubmit="return confirm('Are you sure you want to remove this member?');">
+                        <button type="submit" class="text-zinc-400 hover:text-red-500 transition p-1 rounded-md" title="Remove Member">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Danger Zone -->
+    {% if is_admin %}
+    <div class="flex items-center justify-between px-6 py-4 bg-red-50/20 dark:bg-red-950/5 border border-red-200/50 dark:border-red-900/30 rounded-none">
+        <div class="flex items-center gap-2">
+            <i data-lucide="alert-octagon" class="w-4 h-4 text-red-500"></i>
+            <span class="text-xs font-bold text-zinc-700 dark:text-supabase-text">Delete Workspace</span>
+        </div>
+        <form id="delete-workspace-form" action="{{ url_for('main.delete_workspace') }}" method="POST" class="inline">
+            <button type="button" onclick="triggerDeleteWorkspace()" class="p-2 text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 hover:bg-rose-600 hover:text-white dark:hover:bg-rose-600 dark:hover:text-white transition-all duration-300 transform hover:scale-110 active:scale-95 border border-rose-200/50 dark:border-rose-900/30 hover:border-rose-600 rounded-none shadow-sm flex items-center justify-center group cursor-pointer" title="Delete Workspace">
+                <i data-lucide="trash-2" class="w-4 h-4 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110"></i>
+            </button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Settings Invite Modal -->
+<div id="settingsInviteModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 items-center justify-center p-4">
+    <div class="bg-white dark:bg-supabase-bg rounded-none shadow-2xl border border-zinc-200 dark:border-supabase-border w-full max-w-md">
+        <div class="flex items-center gap-3 px-6 py-5 border-b border-zinc-100 dark:border-supabase-border">
+            <div class="w-9 h-9 rounded-none bg-blue-100 dark:bg-blue-500/10 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                <i data-lucide="user-plus" class="w-5 h-5"></i>
+            </div>
+            <div class="flex-1">
+                <h2 class="text-base font-bold text-zinc-900 dark:text-white">Invite Team Member</h2>
+                <p class="text-xs text-zinc-400">Inviting to: <span class="text-blue-500 font-semibold">{{ org.name }}</span></p>
+            </div>
+            <button onclick="closeModal('settingsInviteModal')" class="text-zinc-400 hover:text-zinc-600 p-1.5 rounded-none hover:bg-zinc-100 dark:hover:bg-zinc-800 transition">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        <form action="{{ url_for('main.team_invite') }}" method="POST" class="p-6 space-y-4">
+            <div>
+                <label class="block text-sm font-semibold text-zinc-700 dark:text-supabase-text mb-2">Email Address</label>
+                <div class="relative">
+                    <i data-lucide="mail" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400"></i>
+                    <input type="email" name="email" required placeholder="Enter email address"
+                        class="w-full pl-10 pr-4 py-3 rounded-none border border-zinc-200 dark:border-supabase-border bg-white dark:bg-supabase-card text-zinc-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition text-sm placeholder-zinc-400">
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-zinc-700 dark:text-supabase-text mb-2">Role</label>
+                <select name="role" class="w-full px-4 py-3 rounded-none border border-zinc-200 dark:border-supabase-border bg-white dark:bg-supabase-card text-zinc-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-blue-500/20 transition">
+                    <option value="MEMBER">Member</option>
+                    <option value="CONTRIBUTOR">Contributor</option>
+                </select>
+            </div>
+            <div class="flex items-center justify-end gap-3 pt-1">
+                <button type="button" onclick="closeModal('settingsInviteModal')" class="px-5 py-2.5 rounded-none border border-zinc-200 dark:border-supabase-border text-zinc-600 dark:text-supabase-muted text-sm font-semibold hover:bg-zinc-50 dark:hover:bg-zinc-900 transition">Cancel</button>
+                <button type="submit" class="px-5 py-2.5 rounded-none bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold transition shadow-sm active:scale-[0.98]">Send Invitation</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function previewSettingsLogo(input) {
+    if (input.files && input.files[0]) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            const preview = document.getElementById('settings-logo-preview');
+            preview.innerHTML = `<img src="${e.target.result}" class="w-full h-full object-cover">`;
+        }
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+function triggerDeleteWorkspace() {
+    showConfirm(
+        "Are you sure you want to delete this workspace? This will permanently delete all projects, tasks, documents, and members associated with it.",
+        function() {
+            document.getElementById('delete-workspace-form').submit();
+        }
+    );
+}
+</script>
+{% endblock %}

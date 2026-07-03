@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+
+{% block top_header %}
+    <span class="text-zinc-400 font-medium">Search Results</span>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-8">
+    <div class="mb-8">
+        <h1 class="text-3xl font-extrabold text-zinc-900 dark:text-white tracking-tight">Search Results for "{{ query }}"</h1>
+        <p class="text-sm text-zinc-500 mt-2">Found {{ projects|length }} projects and {{ tasks|length }} tasks.</p>
+    </div>
+
+    {% if not projects and not tasks %}
+    <div class="flex flex-col items-center justify-center py-20 bg-zinc-50 dark:bg-supabase-card/30 border-2 border-dashed border-zinc-200 dark:border-supabase-border rounded-none">
+        <i data-lucide="search-x" class="w-12 h-12 text-zinc-300 dark:text-zinc-600 mb-4"></i>
+        <h3 class="text-lg font-bold text-zinc-900 dark:text-white">No results found</h3>
+        <p class="text-sm text-zinc-500">We couldn't find anything matching "{{ query }}".</p>
+    </div>
+    {% endif %}
+
+    {% if projects %}
+    <div class="space-y-4">
+        <h2 class="text-lg font-bold text-zinc-900 dark:text-white border-b border-zinc-200 dark:border-supabase-border pb-2 flex items-center gap-2">
+            <i data-lucide="folder" class="w-5 h-5 text-blue-500"></i> Projects
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {% for project in projects %}
+            <a href="{{ url_for('projects.project_details', project_id=project.id) }}" class="block p-4 bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border hover:border-blue-500/50 hover:shadow-md transition-all group rounded-none">
+                <h3 class="font-bold text-zinc-900 dark:text-white group-hover:text-blue-600 transition">{{ project.title }}</h3>
+                <p class="text-xs text-zinc-500 line-clamp-2 mt-1">{{ project.description or 'No description provided.' }}</p>
+                <div class="mt-4 flex items-center justify-between text-[10px] uppercase font-bold text-zinc-400">
+                    <span>{{ project.status }}</span>
+                    <span>{{ project.tasks.count() }} tasks</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if tasks %}
+    <div class="space-y-4 pt-6">
+        <h2 class="text-lg font-bold text-zinc-900 dark:text-white border-b border-zinc-200 dark:border-supabase-border pb-2 flex items-center gap-2">
+            <i data-lucide="check-square" class="w-5 h-5 text-emerald-500"></i> Tasks
+        </h2>
+        <div class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none divide-y divide-zinc-100 dark:divide-supabase-border/50">
+            {% for task in tasks %}
+            <a href="{{ url_for('projects.project_details', project_id=task.project_id) }}?task_id={{ task.id }}" class="flex items-center justify-between p-4 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition group">
+                <div class="flex items-center gap-4 flex-1">
+                    <i data-lucide="{{ {'Bug': 'bug', 'Feature': 'zap', 'Improvement': 'git-pull-request', 'Task': 'check-square'}.get(task.issue_type, 'check-square') }}" class="w-4 h-4 {{ {'Bug': 'text-rose-500', 'Feature': 'text-blue-500', 'Improvement': 'text-purple-500', 'Task': 'text-emerald-500'}.get(task.issue_type, 'text-zinc-400') }}"></i>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] font-black text-zinc-400 uppercase tracking-widest">PROJ-{{ task.id }}</span>
+                            <span class="text-xs font-bold text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5">{{ task.project.title }}</span>
+                        </div>
+                        <h4 class="text-sm font-bold text-zinc-900 dark:text-white group-hover:text-blue-600 transition tracking-tight mt-1">{{ task.title }}</h4>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <span class="px-2 py-0.5 bg-zinc-100 dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border text-[10px] font-bold text-zinc-600 dark:text-supabase-text uppercase">{{ task.status }}</span>
+                    {% if task.assignee %}
+                    <div class="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-bold" title="{{ task.assignee.username }}">
+                        {{ task.assignee.username[0]|upper }}
+                    </div>
+                    {% else %}
+                    <div class="w-7 h-7 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-500" title="Unassigned">?</div>
+                    {% endif %}
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

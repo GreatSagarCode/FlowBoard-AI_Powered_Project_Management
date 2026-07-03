@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+
+{% block top_header %}
+    <span class="text-zinc-400 font-medium">Projects</span>
+    <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400"></i>
+    <span class="text-zinc-400 font-medium">{{ project.title }}</span>
+    <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400"></i>
+    <span class="text-zinc-800 dark:text-supabase-text text-lg font-bold">{% if doc %}Edit Document{% else %}New Document{% endif %}</span>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-10">
+    <div class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none shadow-xl overflow-hidden">
+        <div class="p-8 border-b border-zinc-100 dark:border-supabase-border flex items-center justify-between">
+            <div class="space-y-1">
+                <h1 class="text-2xl font-bold text-zinc-900 dark:text-white">{% if doc %}Edit Document{% else %}Create New Document{% endif %}</h1>
+                <p class="text-sm text-zinc-500">Draft your project documentation with ease.</p>
+            </div>
+            <a href="{{ url_for('projects.project_details', project_id=project.id) }}?tab=docs" class="text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </a>
+        </div>
+
+        <form method="POST" class="p-8 space-y-6">
+            <div class="space-y-2">
+                <label class="block text-sm font-bold text-zinc-900 dark:text-white">Document Title</label>
+                <input type="text" name="title" value="{{ doc.title if doc else '' }}" required placeholder="e.g. Project Requirements"
+                    class="w-full px-4 py-3 text-lg font-medium border border-zinc-200 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-bg text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm">
+            </div>
+
+            <div class="space-y-2">
+                <label class="block text-sm font-bold text-zinc-900 dark:text-white">Link to Task (Optional)</label>
+                <div class="relative">
+                    <select name="task_id" class="appearance-none w-full px-4 py-3 text-sm font-medium border border-zinc-200 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-bg text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm cursor-pointer">
+                        <option value="">-- No task linked --</option>
+                        {% for t in project.tasks.all() %}
+                        <option value="{{ t.id }}" {% if doc and doc.task_id == t.id %}selected{% endif %}>{{ t.title }}</option>
+                        {% endfor %}
+                    </select>
+                    <i data-lucide="chevron-down" class="w-4 h-4 absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"></i>
+                </div>
+            </div>
+
+            <div class="space-y-2">
+                <label class="block text-sm font-bold text-zinc-900 dark:text-white">Content</label>
+                <!-- Hidden textarea to store data for submission -->
+                <textarea name="content" id="content-textarea" class="hidden">{{ doc.content if doc else '' }}</textarea>
+                <!-- Quill Editor Container -->
+                <div id="editor-container" class="bg-white dark:bg-supabase-bg">
+                    {{ doc.content|safe if doc else '' }}
+                </div>
+            </div>
+
+            <div class="flex items-center justify-end gap-4 pt-4">
+                <a href="{{ url_for('projects.project_details', project_id=project.id) }}?tab=docs" 
+                    class="px-6 py-2.5 text-sm font-bold text-zinc-600 dark:text-supabase-muted hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-none transition">
+                    Discard Changes
+                </a>
+                <button type="submit" 
+                    class="px-8 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-none transition shadow-lg shadow-blue-500/20">
+                    {% if doc %}Update Document{% else %}Publish Document{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var quill = new Quill('#editor-container', {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    [{ 'header': [1, 2, 3, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    ['blockquote', 'code-block'],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    [{ 'color': [] }, { 'background': [] }],
+                    ['link', 'image'],
+                    ['clean']
+                ]
+            },
+            placeholder: 'Start writing your document...'
+        });
+
+        // Sync Quill content to hidden textarea on form submit
+        var form = document.querySelector('form');
+        form.onsubmit = function() {
+            var content = document.querySelector('#content-textarea');
+            // Populate hidden form on submit
+            content.value = quill.root.innerHTML;
+        };
+    });
+</script>
+{% endblock %}

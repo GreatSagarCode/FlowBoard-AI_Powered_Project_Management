@@ -1,0 +1,175 @@
+{% extends 'base.html' %}
+
+{% block top_header %}
+    <span class="text-zinc-900 dark:text-white font-bold">Team</span>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-7 max-w-[1200px] mx-auto">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-extrabold text-zinc-900 dark:text-white tracking-tight">Team</h1>
+            <p class="text-zinc-500 dark:text-supabase-muted mt-1 text-sm">Manage team members and their contributions</p>
+        </div>
+        <button onclick="openModal('inviteMemberModal')" class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-none font-bold text-sm transition shadow-lg shadow-blue-500/20 active:scale-95 flex-shrink-0">
+            <i data-lucide="user-plus" class="w-4 h-4"></i> Invite Member
+        </button>
+    </div>
+
+    <!-- Stat Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        <div class="bg-white dark:bg-supabase-bg border border-zinc-100 dark:border-supabase-border p-6 rounded-none shadow-sm">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-xs font-semibold text-zinc-500 dark:text-supabase-muted mb-2">Total Members</div>
+                    <div class="text-3xl font-black text-zinc-900 dark:text-white">{{ total_members }}</div>
+                </div>
+                <div class="p-3 rounded-none bg-blue-50 dark:bg-blue-500/10 text-blue-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-supabase-bg border border-zinc-100 dark:border-supabase-border p-6 rounded-none shadow-sm">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-xs font-semibold text-zinc-500 dark:text-supabase-muted mb-2">Active Projects</div>
+                    <div class="text-3xl font-black text-zinc-900 dark:text-white">{{ active_projects_count }}</div>
+                </div>
+                <div class="p-3 rounded-none bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-supabase-bg border border-zinc-100 dark:border-supabase-border p-6 rounded-none shadow-sm">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-xs font-semibold text-zinc-500 dark:text-supabase-muted mb-2">Total Tasks</div>
+                    <div class="text-3xl font-black text-zinc-900 dark:text-white">{{ total_tasks }}</div>
+                </div>
+                <div class="p-3 rounded-none bg-purple-50 dark:bg-purple-500/10 text-purple-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search + Member Table -->
+    <div class="bg-white dark:bg-supabase-bg border border-zinc-100 dark:border-supabase-border rounded-none shadow-sm overflow-hidden">
+        <!-- Search Bar -->
+        <div class="px-6 py-4 border-b border-zinc-100 dark:border-supabase-border">
+            <div class="relative max-w-sm">
+                <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400"></i>
+                <input type="text" id="memberSearch" placeholder="Search team members..." oninput="filterMembers()"
+                    class="w-full pl-10 pr-4 py-2 text-sm bg-zinc-50 dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition placeholder-zinc-400">
+            </div>
+        </div>
+
+        <!-- Table Header -->
+        <div class="grid grid-cols-12 gap-4 px-6 py-3 bg-zinc-50 dark:bg-supabase-card/50 border-b border-zinc-100 dark:border-supabase-border">
+            <div class="col-span-5 text-[11px] font-bold text-zinc-400 uppercase tracking-widest">Name</div>
+            <div class="col-span-5 text-[11px] font-bold text-zinc-400 uppercase tracking-widest">Email</div>
+            <div class="col-span-2 text-[11px] font-bold text-zinc-400 uppercase tracking-widest">Role</div>
+        </div>
+
+        <!-- Table Rows -->
+        <div id="memberTable">
+            {% for member in members %}
+            <div class="member-row grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-zinc-50 dark:hover:bg-zinc-900/40 transition {% if not loop.last %}border-b border-zinc-50 dark:border-supabase-border{% endif %}">
+                <!-- Name -->
+                <div class="col-span-5 flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                        {{ member.username[0]|upper }}
+                    </div>
+                    <div>
+                        <div class="text-sm font-semibold text-zinc-900 dark:text-white">{{ member.username }}</div>
+                    </div>
+                </div>
+                <!-- Email -->
+                <div class="col-span-5">
+                    <span class="text-sm text-zinc-500 dark:text-supabase-muted">{{ member.email }}</span>
+                </div>
+                <!-- Role Badge -->
+                <div class="col-span-2 flex items-center justify-between pr-2">
+                    {% set role = member_roles.get(member.id, 'MEMBER') %}
+                    <span class="inline-flex items-center px-2.5 py-1 rounded-none text-[10px] font-bold uppercase
+                        {% if role == 'ADMIN' %}bg-purple-100 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400
+                        {% elif role == 'CONTRIBUTOR' %}bg-blue-100 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400
+                        {% else %}bg-zinc-100 dark:bg-supabase-card text-zinc-600 dark:text-supabase-muted{% endif %}">
+                        {{ role }}
+                    </span>
+                    {% if member_roles.get(current_user.id) == 'ADMIN' and role != 'ADMIN' %}
+                    <form action="{{ url_for('main.team_remove', user_id=member.id) }}" method="POST" class="inline" onsubmit="return confirm('Are you sure you want to remove this member?');">
+                        <button type="submit" class="text-zinc-400 hover:text-red-500 transition p-1 rounded-md" title="Remove Member">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% else %}
+            <div class="px-6 py-12 text-center">
+                <p class="text-sm text-zinc-400">No team members found.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Invite Member Modal -->
+<div id="inviteMemberModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 items-center justify-center p-4">
+    <div class="bg-white dark:bg-supabase-bg rounded-none shadow-2xl border border-zinc-200 dark:border-supabase-border w-full max-w-md">
+        <div class="flex items-center gap-3 px-6 py-5 border-b border-zinc-100 dark:border-supabase-border">
+            <div class="w-9 h-9 rounded-none bg-blue-100 dark:bg-blue-500/10 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                <i data-lucide="user-plus" class="w-5 h-5"></i>
+            </div>
+            <div class="flex-1">
+                <h2 class="text-base font-bold text-zinc-900 dark:text-white">Invite Team Member</h2>
+                <p class="text-xs text-zinc-400">Inviting to workspace: <span class="text-blue-500 font-semibold">{{ org.name }}</span></p>
+            </div>
+            <button onclick="closeModal('inviteMemberModal')" class="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 p-1.5 rounded-none hover:bg-zinc-100 dark:hover:bg-zinc-800 transition">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        <form action="{{ url_for('main.team_invite') }}" method="POST" class="p-6 space-y-4">
+            <div>
+                <label class="block text-sm font-semibold text-zinc-700 dark:text-supabase-text mb-2">Email Address</label>
+                <div class="relative">
+                    <i data-lucide="mail" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400"></i>
+                    <input type="email" name="email" required placeholder="Enter email address"
+                        class="w-full pl-10 pr-4 py-3 rounded-none border border-zinc-200 dark:border-supabase-border bg-white dark:bg-supabase-card text-zinc-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition text-sm placeholder-zinc-400">
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-zinc-700 dark:text-supabase-text mb-2">Role</label>
+                <select name="role" class="w-full px-4 py-3 rounded-none border border-zinc-200 dark:border-supabase-border bg-white dark:bg-supabase-card text-zinc-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                    <option value="MEMBER">Member</option>
+                    <option value="CONTRIBUTOR">Contributor</option>
+                </select>
+            </div>
+            <div class="flex items-center justify-end gap-3 pt-1">
+                <button type="button" onclick="closeModal('inviteMemberModal')" class="px-5 py-2.5 rounded-none border border-zinc-200 dark:border-supabase-border text-zinc-600 dark:text-supabase-muted text-sm font-semibold hover:bg-zinc-50 dark:hover:bg-zinc-900 transition">
+                    Cancel
+                </button>
+                <button type="submit" class="px-5 py-2.5 rounded-none bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold transition shadow-sm active:scale-[0.98]">
+                    Send Invitation
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterMembers() {
+    const q = document.getElementById('memberSearch').value.toLowerCase();
+    document.querySelectorAll('.member-row').forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(q) ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}

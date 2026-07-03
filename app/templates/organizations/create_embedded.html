@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+
+{% block top_header %}
+    <span class="text-zinc-900 dark:text-white font-bold">New Workspace</span>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-extrabold text-zinc-900 dark:text-white tracking-tight">Create a New Workspace</h1>
+            <p class="text-sm text-zinc-500 dark:text-supabase-muted mt-1">Workspaces keep your projects, tasks, and team members isolated.</p>
+        </div>
+    </div>
+
+    <!-- Form Card -->
+    <div class="bg-white dark:bg-supabase-bg border border-zinc-100 dark:border-supabase-border rounded-none shadow-xl overflow-hidden glass">
+        <form action="{{ url_for('organizations.create') }}" method="POST" enctype="multipart/form-data" class="p-6 space-y-6">
+            <!-- Logo Upload -->
+            <div class="space-y-2">
+                <label class="block text-sm font-semibold text-zinc-800 dark:text-supabase-text">Workspace Logo</label>
+                <div class="flex items-center gap-5">
+                    <div id="logo-preview" class="w-16 h-16 rounded-none bg-zinc-100 dark:bg-supabase-card border-2 border-dashed border-zinc-300 dark:border-supabase-border flex items-center justify-center text-zinc-400 overflow-hidden flex-shrink-0">
+                        <i data-lucide="upload-cloud" class="w-6 h-6"></i>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="cursor-pointer bg-white dark:bg-supabase-card border border-zinc-300 dark:border-supabase-border hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-supabase-text px-4 py-2 rounded-none text-sm font-medium transition shadow-sm inline-block w-fit">
+                            Upload Logo
+                            <input type="file" name="logo" class="hidden" accept="image/*" onchange="previewImage(this)">
+                        </label>
+                        <p class="text-xs text-zinc-400">Square layout recommended, up to 10MB.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Name -->
+            <div class="space-y-2">
+                <label class="block text-sm font-semibold text-zinc-800 dark:text-supabase-text">Workspace Name</label>
+                <input type="text" name="name" id="org-name" required
+                    class="w-full px-4 py-3 rounded-none border border-zinc-200 dark:border-supabase-border bg-white dark:bg-supabase-card text-zinc-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition placeholder-zinc-400 text-sm"
+                    placeholder="e.g. Acme Corporation" oninput="updateSlug(this.value)">
+            </div>
+
+            <!-- Slug -->
+            <div class="space-y-2">
+                <label class="block text-sm font-semibold text-zinc-800 dark:text-supabase-text">Workspace URL Slug</label>
+                <input type="text" name="slug" id="org-slug" required
+                    class="w-full px-4 py-3 rounded-none border border-zinc-200 dark:border-supabase-border bg-white dark:bg-supabase-card text-zinc-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition placeholder-zinc-400 text-sm"
+                    placeholder="acme-corp">
+                <p class="text-xs text-zinc-400">Your workspace link: app.flowboard.io/<span id="slug-preview" class="text-blue-500 font-semibold">my-org</span></p>
+            </div>
+
+            <!-- Form Actions -->
+            <div class="flex items-center justify-end gap-3 pt-3 border-t border-zinc-100 dark:border-supabase-border">
+                <a href="{{ url_for('main.index') }}" class="px-5 py-2.5 rounded-none border border-zinc-200 dark:border-supabase-border text-zinc-600 dark:text-supabase-muted text-sm font-semibold hover:bg-zinc-50 dark:hover:bg-zinc-900 transition">
+                    Cancel
+                </a>
+                <button type="submit" class="px-5 py-2.5 rounded-none bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold transition shadow-sm active:scale-[0.98] flex items-center gap-2">
+                    <i data-lucide="plus" class="w-4 h-4"></i> Create Workspace
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function previewImage(input) {
+        if (input.files && input.files[0]) {
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                const preview = document.getElementById('logo-preview');
+                preview.innerHTML = `<img src="${e.target.result}" class="w-full h-full object-cover">`;
+                preview.classList.remove('border-dashed');
+            }
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    function updateSlug(name) {
+        const slug = name.toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+        document.getElementById('org-slug').value = slug;
+        document.getElementById('slug-preview').innerText = slug || 'my-org';
+    }
+</script>
+{% endblock %}

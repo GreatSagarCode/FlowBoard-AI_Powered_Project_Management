@@ -1,0 +1,217 @@
+<div class="p-8 space-y-10">
+    <!-- Title Section -->
+    <div class="space-y-2">
+        <div class="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-zinc-400">
+            <span class="px-2 py-0.5 bg-zinc-100 dark:bg-supabase-card rounded-none">TASK-{{ task.id }}</span>
+            <span>&bull;</span>
+            <span class="{% if task.issue_type == 'Bug' %}text-rose-500{% else %}text-blue-500{% endif %}">{{ task.issue_type }}</span>
+        </div>
+        <h2 class="text-3xl font-extrabold text-zinc-900 dark:text-white tracking-tight leading-tight">{{ task.title }}</h2>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-10">
+        <!-- Main Content (Left) -->
+        <div class="lg:col-span-2 space-y-8">
+            <!-- Description -->
+            <div class="space-y-4">
+                <h3 class="text-sm font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="align-left" class="w-4 h-4"></i> Description
+                </h3>
+                <div class="text-zinc-600 dark:text-supabase-muted text-sm leading-relaxed bg-zinc-50/50 dark:bg-supabase-card/50 p-4 rounded-none border border-zinc-100 dark:border-supabase-border min-h-[100px]">
+                    {{ task.description or 'No description provided.' }}
+                </div>
+            </div>
+
+            <!-- Subtasks -->
+            <div class="space-y-4 pt-4">
+                <h3 class="text-sm font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="list-todo" class="w-4 h-4"></i> Subtasks ({{ task.subtasks|length }})
+                </h3>
+                
+                <div class="space-y-2">
+                    {% for subtask in task.subtasks %}
+                    <div class="flex items-center justify-between p-3 bg-zinc-50 dark:bg-supabase-card border border-zinc-100 dark:border-supabase-border rounded-none group hover:border-blue-500/50 transition">
+                        <div class="flex items-center gap-3">
+                            <input type="checkbox" onchange="updateTaskStatus({{ subtask.id }}, this.checked ? 'Done' : 'To Do')" {% if subtask.status == 'Done' %}checked{% endif %} class="w-4 h-4 text-blue-600 border-zinc-300 rounded-none focus:ring-blue-500 cursor-pointer">
+                            <span class="text-sm font-semibold text-zinc-800 dark:text-supabase-text {% if subtask.status == 'Done' %}line-through opacity-60{% endif %}">{{ subtask.title }}</span>
+                        </div>
+                        <button onclick="openTaskDetails({{ subtask.id }})" class="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-blue-500 transition">
+                            <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <form onsubmit="event.preventDefault(); createSubtask({{ task.id }}, this);" class="flex gap-2">
+                    <input type="text" name="title" required placeholder="Add a subtask..." 
+                        class="flex-1 px-3 py-2 text-sm bg-white dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition">
+                    <button type="submit" class="px-3 py-2 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-xs font-bold rounded-none hover:bg-zinc-800 transition shadow-sm">
+                        Add
+                    </button>
+                </form>
+            </div>
+
+            <!-- Comments -->
+            <div class="space-y-6 pt-4">
+                <h3 class="text-sm font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="message-square" class="w-4 h-4"></i> Comments ({{ task.comments.count() }})
+                </h3>
+                
+                <form action="{{ url_for('tasks.add_comment', task_id=task.id) }}" method="POST" class="relative">
+                    <textarea name="content" required placeholder="Add a comment..." 
+                        class="w-full px-4 py-3 text-sm bg-white dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition resize-none min-h-[80px]"></textarea>
+                    <button type="submit" class="absolute right-3 bottom-3 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-[10px] font-bold px-3 py-1.5 rounded-none hover:scale-105 active:scale-95 transition">
+                        Post Comment
+                    </button>
+                </form>
+
+                <div class="space-y-4">
+                    {% for comment in task.comments.order_by(Comment.created_at.desc()).all() %}
+                    <div class="flex gap-4 group">
+                        <div class="w-8 h-8 rounded-full bg-zinc-100 dark:bg-supabase-card flex items-center justify-center flex-shrink-0 text-xs font-bold text-zinc-500">
+                            {{ comment.author.username[0]|upper }}
+                        </div>
+                        <div class="flex-1 space-y-1">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-bold text-zinc-900 dark:text-white">{{ comment.author.username }}</span>
+                                <span class="text-[10px] text-zinc-400">{{ comment.created_at.strftime('%b %d, %H:%M') }}</span>
+                            </div>
+                            <p class="text-sm text-zinc-600 dark:text-supabase-muted leading-relaxed">{{ comment.content }}</p>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Activity Log -->
+            <div class="space-y-4 pt-8 border-t border-zinc-100 dark:border-supabase-border">
+                <h3 class="text-sm font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="history" class="w-4 h-4"></i> Activity History
+                </h3>
+                
+                <div class="space-y-4 pl-4 border-l-2 border-zinc-100 dark:border-supabase-border">
+                    {% for log in task.activity_logs|sort(attribute='created_at', reverse=True) %}
+                    <div class="relative">
+                        <div class="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-blue-500 ring-4 ring-white dark:ring-supabase-bg"></div>
+                        <p class="text-xs text-zinc-600 dark:text-supabase-text">
+                            <span class="font-bold text-zinc-900 dark:text-white">{{ log.user.username }}</span> {{ log.action }}
+                        </p>
+                        <span class="text-[9px] text-zinc-400">{{ log.created_at.strftime('%b %d, %H:%M') }}</span>
+                    </div>
+                    {% else %}
+                    <p class="text-xs text-zinc-500">No recent activity.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar Properties (Right) -->
+        <div class="space-y-8">
+            <div class="space-y-6 bg-zinc-50/50 dark:bg-supabase-card/50 p-6 rounded-none border border-zinc-100 dark:border-supabase-border">
+                <!-- Status -->
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Status</label>
+                    <select onchange="updateTaskStatus({{ task.id }}, this.value)" class="w-full appearance-none outline-none flex items-center gap-2 px-3 py-2 bg-white dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none text-xs font-bold text-zinc-700 dark:text-supabase-text cursor-pointer focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                        <option value="To Do" {% if task.status == 'To Do' %}selected{% endif %}>To Do</option>
+                        <option value="In Progress" {% if task.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                        <option value="Done" {% if task.status == 'Done' %}selected{% endif %}>Done</option>
+                    </select>
+                </div>
+
+                <!-- Priority -->
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Priority</label>
+                    <select onchange="updateTaskField({{ task.id }}, 'priority', this.value)" class="w-full appearance-none outline-none flex items-center gap-2 px-3 py-2 bg-white dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none text-xs font-bold text-zinc-700 dark:text-supabase-text cursor-pointer focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                        <option value="Low" {% if task.priority == 'Low' %}selected{% endif %}>Low</option>
+                        <option value="Medium" {% if task.priority == 'Medium' %}selected{% endif %}>Medium</option>
+                        <option value="High" {% if task.priority == 'High' %}selected{% endif %}>High</option>
+                        <option value="Highest" {% if task.priority == 'Highest' %}selected{% endif %}>Highest</option>
+                    </select>
+                </div>
+
+                <!-- Assignee -->
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Assignee</label>
+                    <select onchange="updateTaskField({{ task.id }}, 'assignee_id', this.value)" class="w-full appearance-none outline-none flex items-center gap-2 px-3 py-2 bg-white dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none text-xs font-bold text-zinc-700 dark:text-supabase-text cursor-pointer focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                        <option value="">Unassigned</option>
+                        {% for user in org_members %}
+                        <option value="{{ user.id }}" {% if task.assignee_id == user.id %}selected{% endif %}>{{ user.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Due Date -->
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Due Date</label>
+                    <div class="relative">
+                        <input type="date" value="{{ task.due_date.strftime('%Y-%m-%d') if task.due_date else '' }}" 
+                            onchange="updateTaskField({{ task.id }}, 'due_date', this.value)"
+                            class="w-full appearance-none outline-none px-3 py-2 bg-white dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none text-xs font-bold text-zinc-700 dark:text-supabase-text cursor-pointer focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Linked Documents -->
+            <div class="space-y-4 bg-zinc-50/50 dark:bg-supabase-card/50 p-6 rounded-none border border-zinc-100 dark:border-supabase-border">
+                <h3 class="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                    <i data-lucide="file-text" class="w-3.5 h-3.5"></i> Linked Documents
+                </h3>
+                {% if task.linked_documents.count() > 0 %}
+                    <ul class="space-y-2">
+                    {% for doc in task.linked_documents %}
+                        <li>
+                            <a href="{{ url_for('projects.project_details', project_id=task.project_id) }}?tab=docs&doc={{ doc.id }}" class="flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline">
+                                <i data-lucide="link" class="w-3.5 h-3.5"></i> {{ doc.title }}
+                            </a>
+                        </li>
+                    {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-xs text-zinc-500 dark:text-supabase-muted">No documents linked.</p>
+                {% endif %}
+            </div>
+
+            <!-- Attachments -->
+            <div class="space-y-4 bg-zinc-50/50 dark:bg-supabase-card/50 p-6 rounded-none border border-zinc-100 dark:border-supabase-border">
+                <h3 class="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                    <i data-lucide="paperclip" class="w-3.5 h-3.5"></i> Attachments ({{ task.attachments|length }})
+                </h3>
+                
+                <form action="{{ url_for('tasks.attach_file', task_id=task.id) }}" method="POST" enctype="multipart/form-data" class="flex items-center gap-2">
+                    <input type="file" name="file" required class="flex-1 text-[10px] text-zinc-500 file:mr-2 file:py-1 file:px-2 file:rounded-none file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
+                    <button type="submit" class="px-2 py-1 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-[10px] font-bold rounded-none hover:scale-105 transition">Upload</button>
+                </form>
+
+                {% if task.attachments %}
+                    <ul class="space-y-2 mt-3">
+                    {% for attachment in task.attachments %}
+                        <li class="flex items-center justify-between">
+                            <a href="{{ url_for('static', filename=attachment.file_path) }}" target="_blank" class="flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline truncate">
+                                <i data-lucide="file" class="w-3.5 h-3.5"></i> {{ attachment.filename }}
+                            </a>
+                            <span class="text-[9px] text-zinc-400">{{ attachment.uploaded_by.username }}</span>
+                        </li>
+                    {% endfor %}
+                    </ul>
+                {% endif %}
+            </div>
+
+            <!-- AI Insights Panel -->
+            <div class="space-y-4 bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-500/5 dark:to-blue-500/5 p-6 rounded-none border border-blue-100 dark:border-blue-500/10">
+                <h3 class="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest flex items-center gap-2">
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> AI Predictions
+                </h3>
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] font-medium text-zinc-500 dark:text-supabase-muted">Auto-Category</span>
+                        <span class="px-2 py-0.5 bg-white dark:bg-supabase-card border border-blue-100 dark:border-blue-500/20 text-blue-600 dark:text-blue-300 text-[10px] font-bold rounded-none shadow-sm">{{ task.category or 'TBD' }}</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] font-medium text-zinc-500 dark:text-supabase-muted">Est. Duration</span>
+                        <span class="text-[11px] font-bold text-zinc-900 dark:text-white">{{ task.duration_days|round(1) if task.duration_days else '0.0' }} days</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

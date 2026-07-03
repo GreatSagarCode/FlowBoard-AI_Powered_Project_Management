@@ -1,0 +1,737 @@
+{% extends 'base.html' %}
+
+{% block top_header %}
+    <span class="text-zinc-900 dark:text-white font-bold">Dashboard</span>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-10 max-w-[1400px] mx-auto px-4 md:px-0">
+    
+    <!-- Welcome Header + New Project Button -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-black text-zinc-900 dark:text-white tracking-tight">Welcome back, {{ current_user.username }}</h1>
+            <p class="text-zinc-500 dark:text-supabase-muted mt-1 text-sm font-medium">Here's what's happening with your projects today</p>
+        </div>
+        <button onclick="openModal('newProjectModal')"
+            class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-bold px-5 py-2.5 rounded-none transition-all shadow-sm flex-shrink-0">
+            <i data-lucide="plus" class="w-4 h-4"></i> New Project
+        </button>
+    </div>
+
+    <!-- 4 Stat Cards matching Screenshot -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <!-- Projects -->
+        <div onclick="window.location.href='{{ url_for('projects.list_projects') }}'" class="bg-white dark:bg-supabase-card border border-zinc-100 dark:border-supabase-border p-6 rounded-none shadow-sm flex items-start justify-between group hover:border-blue-500/50 transition-all cursor-pointer">
+            <div>
+                <div class="text-xs font-medium text-zinc-400 mb-1">Total Projects</div>
+                <div class="text-4xl font-black text-zinc-900 dark:text-white">{{ total_projects }}</div>
+                <div class="text-[10px] text-zinc-400 font-medium mt-1">projects in {{ org.name }}</div>
+            </div>
+            <div class="p-3 rounded-none bg-blue-50 dark:bg-blue-500/10 text-blue-500">
+                <i data-lucide="folder" class="w-6 h-6"></i>
+            </div>
+        </div>
+
+        <!-- Completed -->
+        <div class="bg-white dark:bg-supabase-card border border-zinc-100 dark:border-supabase-border p-6 rounded-none shadow-sm flex items-start justify-between group hover:border-blue-500/50 transition-all">
+            <div>
+                <div class="text-xs font-medium text-zinc-400 mb-1">Completed Projects</div>
+                <div class="text-4xl font-black text-zinc-900 dark:text-white">{{ completed_projects }}</div>
+                <div class="text-[10px] text-zinc-400 font-medium mt-1">of {{ total_projects }} total</div>
+            </div>
+            <div class="p-3 rounded-none bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500">
+                <i data-lucide="check-circle" class="w-6 h-6"></i>
+            </div>
+        </div>
+
+        <!-- My Tasks -->
+        <div class="bg-white dark:bg-supabase-card border border-zinc-100 dark:border-supabase-border p-6 rounded-none shadow-sm flex items-start justify-between group hover:border-blue-500/50 transition-all">
+            <div>
+                <div class="text-xs font-medium text-zinc-400 mb-1">My Tasks</div>
+                <div class="text-4xl font-black text-zinc-900 dark:text-white">{{ my_tasks_count }}</div>
+                <div class="text-[10px] text-zinc-400 font-medium mt-1">assigned to me</div>
+            </div>
+            <div class="p-3 rounded-none bg-purple-50 dark:bg-purple-500/10 text-purple-500">
+                <i data-lucide="users" class="w-6 h-6"></i>
+            </div>
+        </div>
+
+        <!-- Overdue -->
+        <a href="#overdue-section" class="bg-white dark:bg-supabase-card border border-zinc-100 dark:border-supabase-border p-6 rounded-none shadow-sm flex items-start justify-between group hover:border-rose-500/50 transition-all cursor-pointer">
+            <div>
+                <div class="text-xs font-medium text-zinc-400 mb-1">Overdue</div>
+                <div class="text-4xl font-black text-zinc-900 dark:text-white">{{ overdue_tasks_count }}</div>
+                <div class="text-[10px] text-zinc-400 font-medium mt-1">need attention</div>
+            </div>
+            <div class="p-3 rounded-none bg-amber-50 dark:bg-rose-500/10 text-amber-500 dark:text-rose-500">
+                <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+            </div>
+        </a>
+    </div>
+
+    <!-- Main Content Layout -->
+    <div class="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-8">
+        
+        <!-- Left Column: Overview + Activity -->
+        <div class="space-y-8">
+            <!-- Project Overview -->
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Project Overview</h2>
+                    <a href="{{ url_for('projects.list_projects') }}" class="text-sm font-bold text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition flex items-center gap-1">
+                        View all <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                    </a>
+                </div>
+
+                <div class="space-y-3">
+                    {% for project in projects[:2] %}
+                    <div onclick="window.location.href='{{ url_for('projects.project_details', project_id=project.id) }}'" class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none shadow-sm hover:border-blue-500/30 transition-all overflow-hidden cursor-pointer">
+                        <div class="px-6 py-4 border-b border-zinc-200 dark:border-supabase-border">
+                            <div class="flex items-start justify-between mb-1">
+                                <div>
+                                    <h3 class="text-base font-bold text-zinc-900 dark:text-white">{{ project.title }}</h3>
+                                    <p class="text-sm text-zinc-500 font-medium mt-0.5 line-clamp-1">{{ project.description or 'No description' }}</p>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-black rounded-none uppercase tracking-widest">ACTIVE</span>
+                                    <div class="w-2 h-2 rounded-none border-2 border-amber-400"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="p-6 pt-4">
+                            <div class="flex items-center gap-4 text-[11px] text-zinc-400 font-medium mb-6">
+                                <div class="flex items-center gap-1.5">
+                                    <i data-lucide="users" class="w-4 h-4"></i>
+                                    {{ project.members|length }} members
+                                </div>
+                                <div class="flex items-center gap-1.5">
+                                    <i data-lucide="calendar" class="w-4 h-4"></i>
+                                    {{ project.start_date.strftime('%b %d, %Y') }}
+                                </div>
+                            </div>
+
+                            <div class="space-y-2">
+                                <div class="flex justify-between items-center text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+                                    <span>Progress</span>
+                                    <span>{{ project.progress }}%</span>
+                                </div>
+                                <div class="w-full bg-zinc-100 dark:bg-supabase-card h-1 rounded-none overflow-hidden">
+                                    <div class="bg-blue-600 h-full rounded-none transition-all duration-700" style="width: {{ project.progress }}%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Recent Activity matching Screenshot -->
+            <div class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none shadow-sm overflow-hidden">
+                <div class="px-6 py-5 border-b border-zinc-200 dark:border-supabase-border">
+                    <h2 class="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Recent Activity</h2>
+                </div>
+                <div class="divide-y divide-zinc-100 dark:divide-supabase-border">
+                    {% for task in recent_tasks %}
+                    <div onclick="window.location.href='{{ url_for('projects.project_details', project_id=task.project_id) }}?task_id={{ task.id }}'" class="p-5 flex items-center justify-between hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 transition cursor-pointer">
+                        <div class="flex items-center gap-4">
+                            <div class="w-10 h-10 rounded-none flex items-center justify-center 
+                                {% if task.status == 'Done' %}bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500
+                                {% elif task.status == 'In Progress' %}bg-amber-50 dark:bg-amber-500/10 text-amber-500
+                                {% else %}bg-blue-50 dark:bg-blue-500/10 text-blue-500{% endif %}">
+                                <i data-lucide="{% if task.status == 'Done' %}check-square{% elif task.status == 'In Progress' %}zap{% else %}plus-square{% endif %}" class="w-5 h-5"></i>
+                            </div>
+                            <div>
+                                <div class="text-sm font-bold text-zinc-900 dark:text-white">{{ task.title }}</div>
+                                <div class="text-[10px] text-zinc-400 font-bold uppercase tracking-wider mt-0.5">
+                                    {{ task.issue_type }} • {{ org.name }} • {{ task.created_at.strftime('%b %d, %#I:%M %p') }}
+                                </div>
+                            </div>
+                        </div>
+                        <span class="px-2 py-0.5 rounded-none text-[9px] font-black uppercase tracking-widest
+                            {% if task.status == 'Done' %}bg-emerald-100 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400
+                            {% elif task.status == 'In Progress' %}bg-amber-100 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400
+                            {% else %}bg-zinc-100 text-zinc-600 dark:bg-supabase-card dark:text-supabase-muted{% endif %}">
+                            {{ task.status }}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: My Tasks + Overdue + In Progress -->
+        <div class="space-y-6">
+            <!-- My Tasks Section matching Screenshot -->
+            <div class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none overflow-hidden shadow-sm">
+                <div class="flex items-center justify-between px-5 py-4 border-b border-zinc-200 dark:border-supabase-border">
+                    <div class="flex items-center gap-2 text-sm font-bold text-zinc-900 dark:text-white">
+                        <i data-lucide="user" class="w-4 h-4 text-zinc-400"></i>
+                        <span>My Tasks</span>
+                    </div>
+                    <span class="bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 px-2 py-0.5 rounded-none text-[10px] font-bold">{{ my_tasks|length }}</span>
+                </div>
+                {% if my_tasks %}
+                <div class="p-3 space-y-2">
+                    {% for task in my_tasks %}
+                    <div onclick="window.location.href='{{ url_for('projects.project_details', project_id=task.project_id) }}?task_id={{ task.id }}'" class="p-4 bg-zinc-50/50 dark:bg-supabase-card/30 rounded-none hover:bg-zinc-100 dark:hover:bg-zinc-900 transition border border-transparent hover:border-zinc-200 dark:hover:border-supabase-border cursor-pointer">
+                        <div class="text-xs font-bold text-zinc-900 dark:text-supabase-text mb-1">{{ task.title }}</div>
+                        <div class="text-[10px] font-black uppercase text-zinc-400 tracking-wider">
+                            {{ task.issue_type }} • {{ task.priority }} Priority
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="px-5 py-8 text-center text-zinc-400 text-xs font-bold">No tasks assigned</div>
+                {% endif %}
+            </div>
+
+            <!-- Overdue Card -->
+            <div id="overdue-section" class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none overflow-hidden shadow-sm scroll-mt-24">
+                <div class="flex items-center justify-between px-5 py-4 border-b border-zinc-200 dark:border-supabase-border">
+                    <div class="flex items-center gap-2 text-sm font-bold text-zinc-900 dark:text-white">
+                        <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-500"></i> Overdue
+                    </div>
+                    <span class="bg-rose-100 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 px-2 py-0.5 rounded-none text-[10px] font-black">{{ overdue_tasks_count }}</span>
+                </div>
+                <div class="px-5 py-12 text-center">
+                    {% if overdue_tasks %}
+                        <!-- Overdue tasks list -->
+                        <div class="space-y-3 text-left">
+                            {% for t in overdue_tasks %}
+                            <div onclick="window.location.href='{{ url_for('projects.project_details', project_id=t.project_id) }}?task_id={{ t.id }}'" class="flex flex-col cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/30 p-2 -mx-2 transition">
+                                <span class="text-xs font-bold text-zinc-800 dark:text-supabase-text">{{ t.title }}</span>
+                                <span class="text-[10px] text-rose-500 font-black uppercase">{{ t.due_date.strftime('%b %d') }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-zinc-400 text-xs font-bold">No overdue</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- In Progress Section -->
+            <div class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none overflow-hidden shadow-sm">
+                <div class="flex items-center justify-between px-5 py-4 border-b border-zinc-200 dark:border-supabase-border">
+                    <div class="flex items-center gap-2 text-sm font-bold text-zinc-900 dark:text-white">
+                        <i data-lucide="clock" class="w-4 h-4 text-blue-500"></i> In Progress
+                    </div>
+                    <span class="bg-blue-100 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-none text-[10px] font-black">{{ in_progress_tasks|length }}</span>
+                </div>
+                {% if in_progress_tasks %}
+                <div class="p-3 space-y-2">
+                    {% for task in in_progress_tasks %}
+                    <div onclick="window.location.href='{{ url_for('projects.project_details', project_id=task.project_id) }}?task_id={{ task.id }}'" class="p-4 bg-zinc-50/50 dark:bg-supabase-card/30 rounded-none hover:bg-zinc-100 dark:hover:bg-zinc-900 transition border border-transparent hover:border-zinc-200 dark:hover:border-supabase-border cursor-pointer">
+                        <div class="text-xs font-bold text-zinc-800 dark:text-supabase-text mb-1">{{ task.title }}</div>
+                        <div class="text-[10px] font-black uppercase text-zinc-400 tracking-wider">
+                            {{ task.issue_type }} • {{ task.priority }} Priority
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="px-5 py-8 text-center text-zinc-400 text-xs font-bold">No tasks in progress</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== New Project Modal — pixel-perfect match to screenshot ===== -->
+<div id="newProjectModal" class="hidden fixed inset-0 bg-black/40 z-50 items-center justify-center p-4">
+    <div class="bg-white dark:bg-supabase-bg rounded-none shadow-2xl border border-zinc-200 dark:border-supabase-border w-full max-w-lg">
+        <div class="flex items-start justify-between px-6 py-4 border-b border-zinc-100 dark:border-supabase-border">
+            <div>
+                <h2 class="text-xl font-bold text-zinc-900 dark:text-white">Create New Project</h2>
+                <p class="text-sm text-zinc-500 mt-0.5">In workspace: <span class="text-blue-600 dark:text-blue-400 font-medium">{{ org.name }}</span></p>
+            </div>
+            <button onclick="closeModal('newProjectModal')" class="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition p-1 -mt-0.5">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        <form action="{{ url_for('projects.create_project') }}" method="POST" class="px-6 py-4 space-y-3">
+            <div class="space-y-1.5 relative">
+                <label class="block text-sm font-medium text-zinc-700 dark:text-supabase-text">Project Name</label>
+                <div class="flex gap-2">
+                    <input type="text" name="title" id="project_title" required placeholder="Enter project name"
+                        class="flex-1 px-3 py-2 text-sm border border-zinc-300 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                    <button type="button" onclick="suggestProjectDetails()" class="p-2 bg-zinc-100 dark:bg-supabase-card text-blue-600 rounded-none hover:bg-blue-50 dark:hover:bg-blue-900/30 transition shadow-sm" title="AI Suggest Details">
+                        <i data-lucide="sparkles" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="space-y-1.5 relative">
+                <label class="block text-sm font-medium text-zinc-700 dark:text-supabase-text">Description</label>
+                <textarea name="description" id="project_description" required rows="2" placeholder="Describe your project"
+                    class="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition resize-none"></textarea>
+                <div id="suggestion_popup_description" class="hidden absolute left-0 top-full mt-1 w-full max-h-48 overflow-y-auto bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border p-3 shadow-xl z-50 text-xs rounded-none glass"></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1.5 relative">
+                    <label class="block text-sm font-medium text-zinc-700 dark:text-supabase-text">Status</label>
+                    <select name="status" id="project_status" required class="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                        <option value="PLANNING" selected>Planning</option>
+                        <option value="ACTIVE">Active</option>
+                        <option value="ON_HOLD">On Hold</option>
+                        <option value="COMPLETED">Completed</option>
+                        <option value="CANCELLED">Cancelled</option>
+                    </select>
+                    <div id="suggestion_popup_status" class="hidden absolute left-0 top-full mt-1 w-full max-h-48 overflow-y-auto bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border p-3 shadow-xl z-50 text-xs rounded-none glass"></div>
+                </div>
+                <div class="space-y-1.5 relative">
+                    <label class="block text-sm font-medium text-zinc-700 dark:text-supabase-text">Priority</label>
+                    <select name="priority" id="project_priority" required class="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                        <option value="LOW">Low</option>
+                        <option value="MEDIUM" selected>Medium</option>
+                        <option value="HIGH">High</option>
+                        <option value="CRITICAL">Critical</option>
+                    </select>
+                    <div id="suggestion_popup_priority" class="hidden absolute left-0 top-full mt-1 w-full max-h-48 overflow-y-auto bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border p-3 shadow-xl z-50 text-xs rounded-none glass"></div>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1.5 relative">
+                    <label class="block text-sm font-medium text-zinc-700 dark:text-supabase-text">Start Date</label>
+                    <input type="date" name="start_date" id="project_start_date" required class="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                    <div id="suggestion_popup_start_date" class="hidden absolute left-0 top-full mt-1 w-full max-h-48 overflow-y-auto bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border p-3 shadow-xl z-50 text-xs rounded-none glass"></div>
+                </div>
+                <div class="space-y-1.5 relative">
+                    <label class="block text-sm font-medium text-zinc-700 dark:text-supabase-text">End Date</label>
+                    <input type="date" name="end_date" id="project_end_date" required class="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                    <div id="suggestion_popup_end_date" class="hidden absolute left-0 top-full mt-1 w-full max-h-48 overflow-y-auto bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border p-3 shadow-xl z-50 text-xs rounded-none glass"></div>
+                </div>
+            </div>
+            <div class="space-y-1.5 relative">
+                <label class="block text-sm font-medium text-zinc-700 dark:text-supabase-text">Project Lead</label>
+                <select name="lead_id" id="project_lead" required class="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                    <option value="" disabled selected>Select a lead</option>
+                    {% for m in org_members %}
+                    <option value="{{ m.id }}">{{ m.username }}</option>
+                    {% endfor %}
+                </select>
+                <div id="suggestion_popup_lead" class="hidden absolute left-0 top-full mt-1 w-full max-h-48 overflow-y-auto bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border p-3 shadow-xl z-50 text-xs rounded-none glass"></div>
+            </div>
+            <div class="space-y-1.5 relative">
+                <label class="block text-sm font-medium text-zinc-700 dark:text-supabase-text">Team Members</label>
+                <div class="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition cursor-pointer flex justify-between items-center" onclick="toggleElement('dashboardTeamMembersDropdown')">
+                    <span class="text-zinc-500 dark:text-supabase-muted">Add team members</span>
+                    <i data-lucide="chevron-down" class="w-4 h-4 text-zinc-400"></i>
+                </div>
+                <div id="dashboardTeamMembersDropdown" class="hidden absolute bottom-full mb-1 left-0 w-full bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none shadow-xl z-50 max-h-40 overflow-y-auto p-1.5">
+                    {% for m in org_members %}
+                    <label class="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-none cursor-pointer transition">
+                        <input type="checkbox" name="member_ids" value="{{ m.id }}" class="rounded-none text-blue-600 focus:ring-blue-500 w-4 h-4">
+                        <span class="text-sm font-medium text-zinc-700 dark:text-supabase-text">{{ m.username }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="flex items-center justify-end gap-3 pt-2">
+                <button type="button" onclick="closeModal('newProjectModal')"
+                    class="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-supabase-text border border-zinc-300 dark:border-zinc-600 rounded-none hover:bg-zinc-50 dark:hover:bg-zinc-800 transition">
+                    Cancel
+                </button>
+                <button type="submit"
+                    class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-none transition-colors shadow-sm">
+                    Create Project
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Prefill Start Date with Today if empty
+    const startDateInput = document.getElementById('project_start_date');
+    if (startDateInput && !startDateInput.value) {
+        startDateInput.value = new Date().toISOString().split('T')[0];
+    }
+
+    // 2. Prevent Enter key from submitting the form when focus is in inputs
+    const form = document.querySelector('#newProjectModal form');
+    if (form) {
+        form.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter' && event.target.tagName === 'INPUT' && event.target.type !== 'submit') {
+                event.preventDefault();
+                // Focus the next empty/required field instead of submitting
+                if (event.target.id === 'project_title') {
+                    const desc = document.getElementById('project_description');
+                    if (desc) desc.focus();
+                }
+            }
+        });
+        
+        // Form validation on submit
+        form.addEventListener('submit', function(event) {
+            const title = form.querySelector('[name="title"]').value.trim();
+            const description = form.querySelector('[name="description"]').value.trim();
+            const startDate = form.querySelector('[name="start_date"]').value;
+            const endDate = form.querySelector('[name="end_date"]').value;
+            const leadId = form.querySelector('[name="lead_id"]').value;
+            
+            // Check checkboxes
+            const memberCheckboxes = form.querySelectorAll('input[name="member_ids"]');
+            const checkedMembers = Array.from(memberCheckboxes).filter(cb => cb.checked);
+            
+            if (!title) {
+                showToast('Project Name is required.', 'error');
+                event.preventDefault();
+                return false;
+            }
+            if (!description) {
+                showToast('Description is required.', 'error');
+                event.preventDefault();
+                return false;
+            }
+            if (!startDate) {
+                showToast('Start Date is required.', 'error');
+                event.preventDefault();
+                return false;
+            }
+            if (!endDate) {
+                showToast('End Date is required.', 'error');
+                event.preventDefault();
+                return false;
+            }
+            if (new Date(startDate) > new Date(endDate)) {
+                showToast('Start Date cannot be after End Date.', 'error');
+                event.preventDefault();
+                return false;
+            }
+            if (!leadId) {
+                showToast('Project Lead is required.', 'error');
+                event.preventDefault();
+                return false;
+            }
+            if (checkedMembers.length === 0) {
+                showToast('At least one Team Member must be assigned.', 'error');
+                event.preventDefault();
+                return false;
+            }
+            return true;
+        });
+    }
+
+    // 3. AI Suggestions logic
+    const titleInput = document.getElementById('project_title');
+    let suggestionsCache = null;
+    let suggestionsLoading = false;
+
+    async function triggerSuggestionsFetch() {
+        if (!titleInput) return;
+        const title = titleInput.value.trim();
+        if (!title) {
+            suggestionsCache = null;
+            updatePopups();
+            return;
+        }
+        
+        suggestionsLoading = true;
+        updatePopups();
+        
+        try {
+            const response = await fetch('/ml/suggest', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: title })
+            });
+            const data = await response.json();
+            if (data && !data.error) {
+                suggestionsCache = data;
+            } else {
+                suggestionsCache = null;
+            }
+        } catch (e) {
+            console.error("AI pre-fetch failed", e);
+            suggestionsCache = null;
+        } finally {
+            suggestionsLoading = false;
+            updatePopups();
+        }
+    }
+
+    if (titleInput) {
+        titleInput.addEventListener('blur', triggerSuggestionsFetch);
+        let fetchTimeout = null;
+        titleInput.addEventListener('input', () => {
+            clearTimeout(fetchTimeout);
+            fetchTimeout = setTimeout(triggerSuggestionsFetch, 800);
+        });
+    }
+
+    function updatePopups() {
+        const descPopup = document.getElementById('suggestion_popup_description');
+        const priorityPopup = document.getElementById('suggestion_popup_priority');
+        const endDatePopup = document.getElementById('suggestion_popup_end_date');
+        if (!descPopup || !priorityPopup || !endDatePopup) return;
+        
+        const titleVal = titleInput ? titleInput.value.trim() : '';
+
+        if (!titleVal) {
+            const promptText = `
+                <div class="flex items-start gap-2 text-zinc-500 dark:text-supabase-muted">
+                    <i data-lucide="help-circle" class="w-4 h-4 mt-0.5 text-zinc-400"></i>
+                    <div>
+                        <span class="font-semibold text-zinc-600 dark:text-zinc-300">AI Suggestion</span>
+                        <p class="mt-0.5 text-[11px]">Please enter a project name first to get AI suggestions.</p>
+                    </div>
+                </div>`;
+            descPopup.innerHTML = promptText;
+            priorityPopup.innerHTML = promptText;
+            endDatePopup.innerHTML = promptText;
+            lucide.createIcons();
+            return;
+        }
+
+        if (suggestionsLoading) {
+            const loadingText = `
+                <div class="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                    <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                    <span class="font-semibold">Fetching AI suggestions...</span>
+                </div>`;
+            descPopup.innerHTML = loadingText;
+            priorityPopup.innerHTML = loadingText;
+            endDatePopup.innerHTML = loadingText;
+            lucide.createIcons();
+            return;
+        }
+
+        if (suggestionsCache) {
+            // Auto‑apply description if it is still empty so the user sees it instantly
+            const descInput = document.getElementById('project_description');
+            if (descInput && !descInput.value.trim()) {
+                descInput.value = suggestionsCache.suggested_description || '';
+            }
+
+            // Description
+            descPopup.innerHTML = `
+                <div class="space-y-2">
+                    <div class="flex items-start gap-2">
+                        <i data-lucide="sparkles" class="w-4 h-4 mt-0.5 text-blue-500 animate-pulse"></i>
+                        <div>
+                            <span class="font-bold text-zinc-800 dark:text-zinc-200">AI Suggested Description</span>
+                            <p class="text-zinc-500 dark:text-supabase-muted mt-1 italic line-clamp-3">"${suggestionsCache.suggested_description}"</p>
+                        </div>
+                    </div>
+                    <button type="button" id="apply-desc-btn" class="w-full mt-1.5 py-1 text-center bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 font-bold border border-blue-200 dark:border-blue-900 transition text-[11px]">
+                        Apply Suggestion
+                    </button>
+                </div>`;
+            const applyDescBtn = document.getElementById('apply-desc-btn');
+            if (applyDescBtn) {
+                applyDescBtn.addEventListener('click', () => applySuggestion('description'));
+            }
+
+            // Priority
+            priorityPopup.innerHTML = `
+                <div class="space-y-2">
+                    <div class="flex items-start gap-2">
+                        <i data-lucide="sparkles" class="w-4 h-4 mt-0.5 text-blue-500"></i>
+                        <div>
+                            <span class="font-bold text-zinc-800 dark:text-zinc-200">AI Predicted Priority</span>
+                            <p class="mt-1">Recommended: <span class="font-bold uppercase text-blue-600 dark:text-blue-400">${suggestionsCache.priority}</span></p>
+                        </div>
+                    </div>
+                    <button type="button" id="apply-priority-btn" class="w-full mt-1.5 py-1 text-center bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 font-bold border border-blue-200 dark:border-blue-900 transition text-[11px]">
+                        Apply Recommendation
+                    </button>
+                </div>`;
+            const applyPriorityBtn = document.getElementById('apply-priority-btn');
+            if (applyPriorityBtn) {
+                applyPriorityBtn.addEventListener('click', () => applySuggestion('priority'));
+            }
+
+            // End Date
+            endDatePopup.innerHTML = `
+                <div class="space-y-2">
+                    <div class="flex items-start gap-2">
+                        <i data-lucide="sparkles" class="w-4 h-4 mt-0.5 text-blue-500"></i>
+                        <div>
+                            <span class="font-bold text-zinc-800 dark:text-zinc-200">AI Suggested Deadline</span>
+                            <p class="mt-1">Recommended Date: <span class="font-bold text-blue-600 dark:text-blue-400">${suggestionsCache.suggested_date}</span></p>
+                            <p class="text-[10px] text-zinc-400">Duration: ~${Math.round(suggestionsCache.duration_days)} days</p>
+                        </div>
+                    </div>
+                    <button type="button" id="apply-date-btn" class="w-full mt-1.5 py-1 text-center bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 font-bold border border-blue-200 dark:border-blue-900 transition text-[11px]">
+                        Apply Suggested Date
+                    </button>
+                </div>`;
+            const applyDateBtn = document.getElementById('apply-date-btn');
+            if (applyDateBtn) {
+                applyDateBtn.addEventListener('click', () => applySuggestion('endDate'));
+            }
+        } else {
+            const errorText = `
+                <div class="flex items-start gap-2 text-red-500">
+                    <i data-lucide="alert-circle" class="w-4 h-4 mt-0.5"></i>
+                    <div>
+                        <span class="font-semibold text-zinc-600 dark:text-zinc-300">AI Suggestion Unavailable</span>
+                        <p class="text-[10px] mt-0.5">Could not fetch suggestion for this title.</p>
+                    </div>
+                </div>`;
+            descPopup.innerHTML = errorText;
+            priorityPopup.innerHTML = errorText;
+            endDatePopup.innerHTML = errorText;
+        }
+        lucide.createIcons();
+    }
+
+    window.applySuggestion = function(type) {
+        if (!suggestionsCache) return;
+        if (type === 'description') {
+            document.getElementById('project_description').value = suggestionsCache.suggested_description;
+            showToast('AI Description applied!');
+            document.getElementById('suggestion_popup_description').classList.add('hidden');
+        } else if (type === 'priority') {
+            document.getElementById('project_priority').value = suggestionsCache.priority.toUpperCase();
+            showToast('AI Priority applied!');
+            document.getElementById('suggestion_popup_priority').classList.add('hidden');
+        } else if (type === 'endDate') {
+            document.getElementById('project_end_date').value = suggestionsCache.suggested_date;
+            showToast('AI End Date applied!');
+            document.getElementById('suggestion_popup_end_date').classList.add('hidden');
+        }
+    }
+
+    // Static popups initial setups
+    const staticPopups = {
+        'project_status': `
+            <div class="flex items-start gap-2 text-zinc-600 dark:text-zinc-300">
+                <i data-lucide="info" class="w-4 h-4 mt-0.5 text-blue-500"></i>
+                <div>
+                    <span class="font-bold text-zinc-800 dark:text-zinc-200">Status Guidance</span>
+                    <p class="mt-1 text-[10px]">Most new projects start in <span class="font-bold text-blue-600 dark:text-blue-400">PLANNING</span> status while requirements are being drafted.</p>
+                </div>
+            </div>`,
+        'project_start_date': `
+            <div class="space-y-2 text-zinc-600 dark:text-zinc-300">
+                <div class="flex items-start gap-2">
+                    <i data-lucide="calendar" class="w-4 h-4 mt-0.5 text-blue-500"></i>
+                    <div>
+                        <span class="font-bold text-zinc-800 dark:text-zinc-200">Start Date</span>
+                        <p class="mt-1 text-[10px]">By default, projects start today.</p>
+                    </div>
+                </div>
+                <button type="button" id="set-today-btn" class="w-full mt-1.5 py-1 text-center bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 font-bold border border-blue-200 dark:border-blue-900 transition text-[11px]">
+                    Set to Today
+                </button>
+            </div>`,
+        'project_lead': `
+            <div class="flex items-start gap-2 text-zinc-600 dark:text-zinc-300">
+                <i data-lucide="user" class="w-4 h-4 mt-0.5 text-blue-500"></i>
+                <div>
+                    <span class="font-bold text-zinc-800 dark:text-zinc-200">Project Lead Assignment</span>
+                    <p class="mt-1 text-[10px]">Select a member to oversee tasks and manage the timeline.</p>
+                </div>
+            </div>`
+    };
+
+    // Setup start date today listener
+    const startPopup = document.getElementById('suggestion_popup_start_date');
+    if (startPopup) {
+        startPopup.innerHTML = staticPopups['project_start_date'];
+        setTimeout(() => {
+            const btn = document.getElementById('set-today-btn');
+            if (btn) {
+                btn.addEventListener('click', () => {
+                    const today = new Date().toISOString().split('T')[0];
+                    document.getElementById('project_start_date').value = today;
+                    showToast('Start date set to today!');
+                    startPopup.classList.add('hidden');
+                });
+            }
+        }, 100);
+    }
+    const statusPopup = document.getElementById('suggestion_popup_status');
+    if (statusPopup) statusPopup.innerHTML = staticPopups['project_status'];
+    const leadPopup = document.getElementById('suggestion_popup_lead');
+    if (leadPopup) leadPopup.innerHTML = staticPopups['project_lead'];
+
+    // Setup focus and blur events for all popup-enabled fields
+    const popupFields = [
+        { inputId: 'project_description', popupId: 'suggestion_popup_description' },
+        { inputId: 'project_status', popupId: 'suggestion_popup_status' },
+        { inputId: 'project_priority', popupId: 'suggestion_popup_priority' },
+        { inputId: 'project_start_date', popupId: 'suggestion_popup_start_date' },
+        { inputId: 'project_end_date', popupId: 'suggestion_popup_end_date' },
+        { inputId: 'project_lead', popupId: 'suggestion_popup_lead' }
+    ];
+
+    popupFields.forEach(({ inputId, popupId }) => {
+        const input = document.getElementById(inputId);
+        const popup = document.getElementById(popupId);
+        if (!input || !popup) return;
+
+        input.addEventListener('focus', () => {
+            // Hide other popups first
+            popupFields.forEach(pf => {
+                const otherPopup = document.getElementById(pf.popupId);
+                if (otherPopup && pf.popupId !== popupId) {
+                    otherPopup.classList.add('hidden');
+                }
+            });
+            popup.classList.remove('hidden');
+            lucide.createIcons();
+        });
+    });
+
+    // Close popup on click outside
+    document.addEventListener('click', (e) => {
+        popupFields.forEach(({ inputId, popupId }) => {
+            const input = document.getElementById(inputId);
+            const popup = document.getElementById(popupId);
+            if (!input || !popup) return;
+
+            if (!input.contains(e.target) && !popup.contains(e.target)) {
+                popup.classList.add('hidden');
+            }
+        });
+    });
+
+    // Initialize popups content once
+    updatePopups();
+});
+
+async function suggestProjectDetails() {
+    const title = document.getElementById('project_title').value;
+    if (!title) {
+        showToast('Please enter a project name first.', 'error');
+        return;
+    }
+
+    const btn = event.currentTarget;
+    const originalContent = btn.innerHTML;
+    btn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i>';
+    lucide.createIcons();
+
+    try {
+        const response = await fetch('/ml/suggest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: title })
+        });
+        const data = await response.json();
+        
+        if (data.error) throw new Error(data.error);
+
+        // Fill fields
+        document.getElementById('project_description').value = data.suggested_description;
+        document.getElementById('project_priority').value = data.priority.toUpperCase();
+        document.getElementById('project_end_date').value = data.suggested_date;
+        
+        showToast('AI suggestions applied!');
+    } catch (e) {
+        showToast('AI suggestion failed.', 'error');
+    } finally {
+        btn.innerHTML = originalContent;
+        lucide.createIcons();
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlowBoard | Premium Project Management</title>
+    <meta name="description" content="FlowBoard — AI-powered project management for high-performance teams.">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Quill.js for Rich Text Editing -->
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+    <style>
+        .ql-toolbar { border-radius: 0 !important; background: #fafafa; border-color: #e4e4e7 !important; }
+        .dark .ql-toolbar { background: #1e1e1e; border-color: #2e2e2e !important; }
+        .ql-container { border-radius: 0 !important; border-color: #e4e4e7 !important; min-height: 150px; font-family: inherit !important; }
+        .dark .ql-container { border-color: #2e2e2e !important; color: white; }
+        .dark .ql-stroke { stroke: #ededed !important; }
+        .dark .ql-fill { fill: #ededed !important; }
+        .dark .ql-picker { color: #ededed !important; }
+    </style>
+    <!-- Alpine JS -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                    },
+                    colors: {
+                        oled: '#000000',
+                        supabase: {
+                            bg: '#171717',
+                            card: '#1e1e1e',
+                            border: '#2e2e2e',
+                            primary: '#3ecf8e',
+                            text: '#ededed',
+                            muted: '#a1a1a1'
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Prevent FOUC: Set theme before body renders
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
+    <style>
+        [x-cloak] { display: none !important; }
+        * { 
+            font-family: 'Outfit', sans-serif; 
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
+        }
+        body { @apply antialiased; font-weight: 500; }
+        h1, h2, h3, h4, h5, h6 { font-weight: 800 !important; tracking: -0.025em; letter-spacing: -0.02em; }
+        
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        ::-webkit-scrollbar { width: 0.4rem; height: 0.4rem; }
+        ::-webkit-scrollbar-track { background-color: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: #e5e7eb; border-radius: 0; }
+        .dark ::-webkit-scrollbar-thumb { background-color: #27272a; }
+        ::-webkit-scrollbar-thumb:hover { background-color: #d1d5db; }
+        .dark ::-webkit-scrollbar-thumb:hover { background-color: #3f3f46; }
+
+        .dark input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(100%); }
+        input[type="checkbox"] { appearance: none; background-color: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 0; cursor: pointer; width: 1.1rem; height: 1.1rem; transition: all 0.2s; position: relative; }
+        .dark input[type="checkbox"] { background-color: #18181b; border-color: #27272a; }
+        input[type="checkbox"]:checked { background-color: #3b82f6; border-color: #3b82f6; }
+        input[type="checkbox"]:checked::after { content: ''; position: absolute; width: 0.4rem; height: 0.4rem; background-color: white; border-radius: 0; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+
+        /* Glass effect */
+        .glass { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+
+        /* Sidebar nav active */
+        .nav-active { background-color: #f4f4f5; color: #09090b; font-weight: 700; border-radius: 0; }
+        .dark .nav-active { background-color: #1e1e1e; color: #ffffff; font-weight: 700; border-radius: 0; }
+
+        /* Tabs Styling */
+        .tab-btn { color: #71717a; border-bottom: 2px solid transparent; font-weight: 700; letter-spacing: -0.01em; }
+        .tab-btn:hover { color: #18181b; }
+        .dark .tab-btn:hover { color: #ffffff; }
+        .tab-btn.active { color: #2563eb; border-bottom-color: #2563eb; }
+        .dark .tab-btn.active { color: #60a5fa; border-bottom-color: #60a5fa; }
+    </style>
+</head>
+<body class="bg-zinc-50 text-zinc-900 dark:bg-supabase-bg dark:text-supabase-text min-h-screen flex flex-col md:flex-row transition-colors duration-200">
+    {% if current_user.is_authenticated and session.get('active_org_id') %}
+    {% set active_org = namespace(val=None) %}
+    {% for membership in current_user.memberships %}{% if membership.organization_id == session.get('active_org_id') %}{% set active_org.val = membership.organization %}{% endif %}{% endfor %}
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="w-full md:w-64 border-r border-zinc-200 dark:border-supabase-border bg-white dark:bg-supabase-bg flex-shrink-0 flex flex-col h-auto md:h-screen sticky top-0 z-40 transition-all overflow-hidden">
+
+        <!-- Workspace Switcher -->
+        <div class="p-4 border-b border-zinc-100 dark:border-supabase-border">
+            <div class="relative group">
+                <button onclick="document.getElementById('org-dropdown').classList.toggle('hidden')" class="w-full flex items-center justify-between p-2 rounded-none hover:bg-zinc-50 dark:hover:bg-supabase-card transition-all">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-none bg-red-600 flex-shrink-0 flex items-center justify-center text-white font-black text-lg overflow-hidden">
+                            {% if active_org.val.logo_path %}
+                                <img src="{{ url_for('static', filename=active_org.val.logo_path) }}" class="w-full h-full object-cover">
+                            {% else %}
+                                {{ active_org.val.name[0]|upper }}
+                            {% endif %}
+                        </div>
+                        <div class="text-left">
+                            <div class="text-sm font-bold text-zinc-900 dark:text-white truncate max-w-[120px]">{{ active_org.val.name }}</div>
+                            <div class="text-[10px] text-zinc-400">{{ current_user.memberships.count() }} workspaces</div>
+                        </div>
+                    </div>
+                    <i data-lucide="chevron-down" class="w-4 h-4 text-zinc-400"></i>
+                </button>
+            </div>
+
+            <!-- Workspace Switcher Dropdown -->
+            <div id="org-dropdown" class="hidden absolute top-20 left-4 right-4 mt-2 bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none shadow-2xl z-50 p-2 glass">
+                <div class="text-[10px] font-bold text-zinc-400 uppercase tracking-widest p-2 border-b border-zinc-100 dark:border-supabase-border mb-1">Workspaces</div>
+                <div class="max-h-60 overflow-y-auto no-scrollbar py-1">
+                    {% for membership in current_user.memberships %}
+                    <a href="{{ url_for('organizations.switch', slug=membership.organization.slug) }}" class="flex items-center justify-between p-2 rounded-none hover:bg-zinc-100 dark:hover:bg-zinc-800 transition mb-1">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-none bg-red-600 flex-shrink-0 flex items-center justify-center text-white font-black text-xs overflow-hidden">
+                                {% if membership.organization.logo_path %}
+                                    <img src="{{ url_for('static', filename=membership.organization.logo_path) }}" class="w-full h-full object-cover">
+                                {% else %}
+                                    {{ membership.organization.name[0]|upper }}
+                                {% endif %}
+                            </div>
+                            <div>
+                                <div class="text-xs font-bold text-zinc-900 dark:text-white">{{ membership.organization.name }}</div>
+                                <div class="text-[9px] text-zinc-400">{{ membership.organization.memberships.count() }} members</div>
+                            </div>
+                        </div>
+                        {% if membership.organization_id == active_org.val.id %}
+                            <i data-lucide="check" class="w-3.5 h-3.5 text-blue-500"></i>
+                        {% endif %}
+                    </a>
+                    {% endfor %}
+                </div>
+                <a href="{{ url_for('organizations.create') }}" class="flex items-center gap-2 p-2 mt-1 rounded-none hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-xs font-bold transition border-t border-zinc-100 dark:border-supabase-border">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i> Create Workspace
+                </a>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto no-scrollbar">
+            <a href="{{ url_for('main.index') }}" class="flex items-center gap-3 px-3 py-2 rounded-none text-sm font-medium transition-all group {% if request.endpoint == 'main.index' %}bg-zinc-50 dark:bg-supabase-card text-zinc-900 dark:text-white font-semibold{% else %}text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-900/50{% endif %}">
+                <i data-lucide="layout-grid" class="w-4 h-4"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="{{ url_for('projects.list_projects') }}" class="flex items-center gap-3 px-3 py-2 rounded-none text-sm font-medium transition-all group {% if request.endpoint and 'projects' in request.endpoint %}bg-zinc-50 dark:bg-supabase-card text-zinc-900 dark:text-white font-semibold{% else %}text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-900/50{% endif %}">
+                <i data-lucide="folder" class="w-4 h-4"></i>
+                <span>Projects</span>
+            </a>
+            <a href="{{ url_for('main.team') }}" class="flex items-center gap-3 px-3 py-2 rounded-none text-sm font-medium transition-all group {% if request.endpoint == 'main.team' %}bg-zinc-50 dark:bg-supabase-card text-zinc-900 dark:text-white font-semibold{% else %}text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-900/50{% endif %}">
+                <i data-lucide="users" class="w-4 h-4"></i>
+                <span>Team</span>
+            </a>
+            <a href="{{ url_for('main.settings') }}" class="flex items-center gap-3 px-3 py-2 rounded-none text-sm font-medium transition-all group {% if request.endpoint == 'main.settings' %}bg-zinc-50 dark:bg-supabase-card text-zinc-900 dark:text-white font-semibold{% else %}text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-900/50{% endif %}">
+                <i data-lucide="settings" class="w-4 h-4"></i>
+                <span>Settings</span>
+            </a>
+
+            <!-- My Tasks Section -->
+        {% set proj_colors = ['bg-blue-500', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500', 'bg-purple-500', 'bg-indigo-500', 'bg-cyan-500'] %}
+        <div class="pt-6">
+                <button onclick="toggleSidebarSection('my-tasks-list', 'my-tasks-chevron')" class="w-full flex items-center justify-between px-3 py-2 text-sm font-medium text-zinc-600 dark:text-supabase-muted hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-none transition-all">
+                    <div class="flex items-center gap-3">
+                        <i data-lucide="check-square" class="w-4 h-4 text-zinc-400"></i>
+                        <span>My Tasks</span>
+                        <span class="bg-zinc-100 dark:bg-supabase-card px-1.5 py-0.5 rounded-none text-[10px] text-zinc-500 font-bold ml-1">{{ current_user.assigned_tasks|length }}</span>
+                    </div>
+                    <i id="my-tasks-chevron" data-lucide="chevron-down" class="w-4 h-4 text-zinc-400 transition-transform"></i>
+                </button>
+                <div id="my-tasks-list" class="space-y-3 mt-2 pl-3">
+                    {% set type_icons = {'Bug': 'bug', 'Feature': 'sparkles', 'Improvement': 'trending-up', 'Task': 'check-circle-2', 'Epic': 'zap'} %}
+                    {% set type_colors = {'Bug': 'bg-rose-500', 'Feature': 'bg-emerald-500', 'Improvement': 'bg-blue-500', 'Task': 'bg-zinc-400', 'Epic': 'bg-purple-500'} %}
+                    {% for t in current_user.assigned_tasks[:5] %}
+                    <a href="{{ url_for('projects.project_details', project_id=t.project_id) }}?task_id={{ t.id }}" class="flex items-start gap-3 group">
+                        <div class="mt-1.5 w-2 h-2 rounded-none flex-shrink-0 {{ type_colors.get(t.issue_type, 'bg-zinc-400') }}"></div>
+                        <div class="flex flex-col">
+                            <span class="text-xs font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-blue-600 transition-colors">{{ t.title }}</span>
+                            <span class="text-[10px] text-zinc-400 font-medium lowercase flex items-center gap-1">
+                                <i data-lucide="{{ type_icons.get(t.issue_type, 'circle') }}" class="w-2 h-2"></i>
+                                {{ t.status }}
+                            </span>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- PROJECTS Section -->
+            <div class="pt-4">
+                <button onclick="toggleSidebarSection('projects-list', 'projects-chevron')" class="w-full flex items-center justify-between px-3 py-2 text-[11px] font-bold text-zinc-400 uppercase tracking-widest hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-none transition-all">
+                    <span>PROJECTS</span>
+                    <i id="projects-chevron" data-lucide="chevron-down" class="w-4 h-4 text-zinc-400 transition-transform"></i>
+                </button>
+                <div id="projects-list" class="space-y-1 mt-1">
+                    {% for p in active_org.val.projects %}
+                    <div class="space-y-0.5">
+                        <div class="flex items-center justify-between px-3 py-2 rounded-none text-sm font-medium transition-all group hover:bg-zinc-50 dark:hover:bg-zinc-900/50 cursor-pointer" 
+                             onclick="toggleProjectSubitems('proj-sub-{{ p.id }}', 'proj-chevron-{{ p.id }}')">
+                            <div class="flex items-center gap-3">
+                                <span class="w-1.5 h-1.5 rounded-none {{ proj_colors[p.id % proj_colors|length] }} flex-shrink-0"></span>
+                                <span class="truncate text-zinc-600 dark:text-supabase-muted">{{ p.title }}</span>
+                            </div>
+                            <i id="proj-chevron-{{ p.id }}" data-lucide="chevron-right" class="w-3.5 h-3.5 text-zinc-400 transition-transform {% if project and project.id == p.id %}rotate-90{% endif %}"></i>
+                        </div>
+                        
+                        <!-- Sub-items -->
+                        <div id="proj-sub-{{ p.id }}" class="pl-7 space-y-0.5 {% if not project or project.id != p.id %}hidden{% endif %}">
+                            <a href="{{ url_for('projects.project_details', project_id=p.id) }}" class="flex items-center gap-3 px-3 py-1.5 rounded-none text-xs font-medium transition {% if project and project.id == p.id and (not request.args.get('tab') or request.args.get('tab') == 'tasks') %}bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400{% else %}text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200{% endif %}">
+                                <i data-lucide="columns" class="w-3.5 h-3.5"></i>
+                                <span>Tasks</span>
+                            </a>
+                            <a href="{{ url_for('projects.project_details', project_id=p.id) }}?tab=analytics" class="flex items-center gap-3 px-3 py-1.5 rounded-none text-xs font-medium transition {% if project and project.id == p.id and request.args.get('tab') == 'analytics' %}bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400{% else %}text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200{% endif %}">
+                                <i data-lucide="bar-chart-2" class="w-3.5 h-3.5"></i>
+                                <span>Analytics</span>
+                            </a>
+                            <a href="{{ url_for('projects.project_details', project_id=p.id) }}?tab=calendar" class="flex items-center gap-3 px-3 py-1.5 rounded-none text-xs font-medium transition {% if project and project.id == p.id and request.args.get('tab') == 'calendar' %}bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400{% else %}text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200{% endif %}">
+                                <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+                                <span>Calendar</span>
+                            </a>
+                            <a href="{{ url_for('projects.project_details', project_id=p.id) }}?tab=settings" class="flex items-center gap-3 px-3 py-1.5 rounded-none text-xs font-medium transition {% if project and project.id == p.id and request.args.get('tab') == 'settings' %}bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400{% else %}text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200{% endif %}">
+                                <i data-lucide="settings" class="w-3.5 h-3.5"></i>
+                                <span>Settings</span>
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </nav>
+
+        <!-- User Footer -->
+        <div class="p-4 border-t border-zinc-100 dark:border-supabase-border flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex-shrink-0 flex items-center justify-center text-white font-bold text-sm shadow-lg">
+                    {{ current_user.username[0]|upper }}
+                </div>
+                <div class="hidden md:block truncate">
+                    <div class="text-xs font-bold text-zinc-900 dark:text-white truncate">{{ current_user.username }}</div>
+                    <div class="text-[9px] text-zinc-500 truncate">{{ current_user.email }}</div>
+                </div>
+            </div>
+            <a href="{{ url_for('auth.logout') }}" class="text-zinc-400 hover:text-red-500 transition p-1.5 rounded-none hover:bg-red-50 dark:hover:bg-red-500/10" title="Logout">
+                <i data-lucide="log-out" class="w-4 h-4"></i>
+            </a>
+        </div>
+    </aside>
+    {% endif %}
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col min-h-screen relative overflow-x-hidden bg-white dark:bg-supabase-bg">
+        <!-- Top Header -->
+        <header class="h-16 border-b border-zinc-100 dark:border-supabase-border bg-white/80 dark:bg-supabase-bg/80 backdrop-blur-xl sticky top-0 z-30 flex items-center justify-between px-8 transition-all">
+            <div class="flex items-center gap-6 flex-1">
+                <!-- Global Search -->
+                <div class="relative w-full max-w-sm hidden lg:block group">
+                    <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 group-focus-within:text-blue-500 transition-colors"></i>
+                    <input type="text" id="global-search" placeholder="Search projects, tasks..." class="w-full pl-10 pr-4 py-2 text-sm bg-zinc-100 dark:bg-supabase-card border-none rounded-none focus:ring-2 focus:ring-blue-500/20 outline-none transition placeholder-zinc-400 dark:placeholder-zinc-600 dark:text-white">
+                </div>
+                <div class="text-sm font-medium flex items-center gap-2 text-zinc-500">
+                    {% block top_header %}{% endblock %}
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <!-- Notifications -->
+                <!-- Notifications -->
+                <div class="relative" x-data="{ open: false }">
+                    <button @click="open = !open" @click.away="open = false" class="p-2.5 rounded-none hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-all relative" title="Notifications">
+                        <i data-lucide="bell" class="w-5 h-5"></i>
+                        {% if current_user.is_authenticated and current_user.notifications.filter_by(is_read=False).count() > 0 %}
+                        <span class="absolute top-2.5 right-2.5 w-2 h-2 bg-blue-600 rounded-none ring-2 ring-white dark:ring-supabase-bg"></span>
+                        {% endif %}
+                    </button>
+                    
+                    <!-- Notification Dropdown -->
+                    <div x-show="open" x-cloak x-transition class="absolute right-0 mt-2 w-80 bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none shadow-2xl z-50 overflow-hidden">
+                        <div class="p-4 border-b border-zinc-100 dark:border-supabase-border flex items-center justify-between bg-zinc-50/50 dark:bg-supabase-card/30">
+                            <h3 class="text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white">Notifications</h3>
+                            <a href="{{ url_for('main.notifications') }}" class="text-[10px] font-bold text-blue-600 hover:underline">View All</a>
+                        </div>
+                        <div class="max-h-80 overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800">
+                            {% set unread_list = (current_user.notifications.filter_by(is_read=False).all() | sort(attribute='created_at', reverse=True))[:5] if current_user.is_authenticated else [] %}
+                            {% for n in unread_list %}
+                            <div class="p-4 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer" onclick="window.location.href='{{ n.link if n.link else url_for('main.mark_read', id=n.id) }}'">
+                                <div class="flex items-center gap-3 mb-1">
+                                    <div class="w-2 h-2 rounded-none bg-blue-600"></div>
+                                    <h4 class="text-xs font-bold text-zinc-900 dark:text-white">{{ n.title }}</h4>
+                                </div>
+                                <p class="text-[11px] text-zinc-500 dark:text-supabase-muted line-clamp-2 pl-5">{{ n.message }}</p>
+                                <span class="text-[9px] text-zinc-400 font-medium pl-5 mt-1 block">{{ n.created_at.strftime('%H:%M') }}</span>
+                            </div>
+                            {% else %}
+                            <div class="p-8 text-center">
+                                <i data-lucide="bell-off" class="w-8 h-8 text-zinc-300 dark:text-zinc-700 mx-auto mb-2"></i>
+                                <p class="text-xs text-zinc-400 font-medium">No unread notifications</p>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% if unread_list|length > 0 %}
+                        <div class="p-2 border-t border-zinc-100 dark:border-supabase-border bg-zinc-50/30 dark:bg-supabase-card/10">
+                            <a href="{{ url_for('main.mark_all_read') }}" class="block w-full py-2 text-center text-[10px] font-bold text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300 transition-colors">Mark all as read</a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <!-- Theme Toggle -->
+                <button id="theme-toggle" class="p-2.5 rounded-none hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-400 hover:text-zinc-200 transition-all" title="Toggle theme">
+                    <i data-lucide="moon" class="w-5 h-5 dark:hidden"></i>
+                    <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
+                </button>
+                <div class="w-px h-6 bg-zinc-200 dark:bg-supabase-card mx-1"></div>
+                {% if current_user.is_authenticated %}
+                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-sm border border-white dark:border-supabase-border cursor-pointer" title="{{ current_user.username }}">
+                    {{ current_user.username[0]|upper }}
+                </div>
+                {% endif %}
+            </div>
+        </header>
+
+        <!-- Page Content -->
+        <div class="flex-1 p-8 overflow-y-auto w-full">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <script>
+                        document.addEventListener('DOMContentLoaded', () => {
+                            {% for category, message in messages %}
+                                showToast("{{ message }}", "{{ 'error' if category == 'error' else 'success' }}");
+                            {% endfor %}
+                        });
+                    </script>
+                {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <script>
+        lucide.createIcons();
+
+        // Theme Toggle
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        if (themeToggleBtn) {
+            themeToggleBtn.addEventListener('click', function() {
+                const isDark = document.documentElement.classList.toggle('dark');
+                localStorage.setItem('theme', isDark ? 'dark' : 'light');
+                lucide.createIcons();
+            });
+        }
+
+        // Toggle dropdown/section visibility
+        function toggleSidebarSection(listId, chevronId) {
+            const list = document.getElementById(listId);
+            const chevron = document.getElementById(chevronId);
+            const isHidden = list.classList.toggle('hidden');
+            if (chevron) {
+                chevron.style.transform = isHidden ? 'rotate(-90deg)' : 'rotate(0deg)';
+            }
+        }
+
+        function toggleProjectSubitems(subId, chevronId) {
+            const sub = document.getElementById(subId);
+            const chevron = document.getElementById(chevronId);
+            if (sub) sub.classList.toggle('hidden');
+            if (chevron) chevron.classList.toggle('rotate-90');
+        }
+
+        function toggleElement(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (el.classList.contains('hidden')) {
+                el.classList.remove('hidden');
+                setTimeout(() => {
+                    window.addEventListener('click', function close(e) {
+                        if (!el.contains(e.target) && !e.target.closest('[onclick^="toggleElement"]')) {
+                            el.classList.add('hidden');
+                            window.removeEventListener('click', close);
+                        }
+                    });
+                }, 10);
+            } else {
+                el.classList.add('hidden');
+            }
+        }
+
+        // Modal open/close helpers
+        function openModal(id) {
+            const m = document.getElementById(id);
+            if (m) { m.classList.remove('hidden'); m.classList.add('flex'); }
+        }
+        function closeModal(id) {
+            const m = document.getElementById(id);
+            if (m) { m.classList.add('hidden'); m.classList.remove('flex'); }
+        }
+
+        // Custom Toast System
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            const isError = type === 'error';
+            const bgColor = isError ? 'bg-red-50 dark:bg-red-900/30' : 'bg-emerald-50 dark:bg-emerald-900/30';
+            const borderColor = isError ? 'border-red-200 dark:border-red-800' : 'border-emerald-200 dark:border-emerald-800';
+            const textColor = isError ? 'text-red-700 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400';
+            const icon = isError ? 'alert-circle' : 'check-circle-2';
+            
+            toast.className = `flex items-center justify-between p-4 mb-3 rounded-none border ${bgColor} ${borderColor} ${textColor} shadow-lg transform transition-all duration-300 translate-x-full opacity-0 max-w-sm w-full`;
+            
+            toast.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <i data-lucide="${icon}" class="w-5 h-5"></i>
+                    <span class="text-sm font-medium">${message}</span>
+                </div>
+                <button onclick="this.parentElement.remove()" class="opacity-50 hover:opacity-100 ml-4 transition-opacity"><i data-lucide="x" class="w-4 h-4"></i></button>
+            `;
+            
+            container.appendChild(toast);
+            lucide.createIcons();
+            
+            // Animate in
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-x-full', 'opacity-0');
+            });
+            
+            // Auto remove
+            setTimeout(() => {
+                toast.classList.add('translate-x-full', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        // Custom Confirm Dialog
+        function showConfirm(message, callback) {
+            const modal = document.getElementById('custom-confirm-modal');
+            document.getElementById('confirm-message').textContent = message;
+            
+            const confirmBtn = document.getElementById('confirm-yes-btn');
+            const cancelBtn = document.getElementById('confirm-cancel-btn');
+            
+            // Clean up previous listeners by cloning
+            const newConfirmBtn = confirmBtn.cloneNode(true);
+            confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+            
+            newConfirmBtn.onclick = () => {
+                closeModal('custom-confirm-modal');
+                callback();
+            };
+            
+            cancelBtn.onclick = () => closeModal('custom-confirm-modal');
+            
+            openModal('custom-confirm-modal');
+        }
+
+        // Global Search Handler
+        document.addEventListener('DOMContentLoaded', () => {
+            const searchInput = document.getElementById('global-search');
+            if (searchInput) {
+                // If on search page, populate the input
+                const urlParams = new URLSearchParams(window.location.search);
+                if (window.location.pathname === '/search' && urlParams.has('q')) {
+                    searchInput.value = urlParams.get('q');
+                }
+
+                searchInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const query = this.value.trim();
+                        if (query) {
+                            window.location.href = `/search?q=${encodeURIComponent(query)}`;
+                        }
+                    }
+                });
+            }
+        });
+    </script>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-[150] flex flex-col items-end pointer-events-none *:pointer-events-auto"></div>
+
+    <!-- Global Confirm Modal -->
+    <div id="custom-confirm-modal" class="hidden fixed inset-0 z-[200] bg-black/40 items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white dark:bg-supabase-card w-full max-w-sm rounded-none shadow-2xl border border-zinc-200 dark:border-supabase-border overflow-hidden transform transition-all scale-100">
+            <div class="p-6 text-center">
+                <div class="w-12 h-12 rounded-none bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto mb-4">
+                    <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+                </div>
+                <h3 class="text-lg font-bold text-zinc-900 dark:text-white mb-2">Are you sure?</h3>
+                <p id="confirm-message" class="text-sm text-zinc-500 dark:text-supabase-muted mb-6">This action cannot be undone.</p>
+                <div class="flex items-center gap-3 w-full">
+                    <button id="confirm-cancel-btn" class="flex-1 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-supabase-text border border-zinc-300 dark:border-supabase-border rounded-none hover:bg-zinc-50 dark:hover:bg-zinc-800 transition">Cancel</button>
+                    <button id="confirm-yes-btn" class="flex-1 px-4 py-2 text-sm font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-none transition shadow-sm">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

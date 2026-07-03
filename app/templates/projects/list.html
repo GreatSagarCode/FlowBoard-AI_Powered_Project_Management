@@ -1,0 +1,689 @@
+{% extends 'base.html' %}
+
+{% block top_header %}
+    <span class="text-zinc-400 font-medium">Workspace</span>
+    <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400"></i>
+    <span class="text-zinc-800 dark:text-supabase-text font-semibold">Projects</span>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-7">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-zinc-900 dark:text-white">Projects</h1>
+            <p class="text-zinc-500 dark:text-supabase-muted mt-0.5 text-sm">Manage and track your projects</p>
+        </div>
+        <!-- New Project Button -->
+        <button onclick="openModal('createProjectModal')"
+            class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-semibold px-4 py-2 rounded-none transition-colors flex-shrink-0">
+            <i data-lucide="plus" class="w-4 h-4"></i> New Project
+        </button>
+    </div>
+
+    <!-- Filters -->
+    <div class="flex flex-wrap items-center gap-3">
+        <div class="relative flex-1 min-w-[240px]">
+            <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400"></i>
+            <input type="text" id="projectSearch" placeholder="Search projects..."
+                oninput="filterProjects()"
+                class="w-full pl-9 pr-4 py-2 text-sm bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition placeholder-zinc-400">
+        </div>
+        <select id="statusFilter" onchange="filterProjects()"
+            class="px-3 py-2 text-sm bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-zinc-700 dark:text-supabase-text cursor-pointer">
+            <option value="">All Status</option>
+            <option value="ACTIVE">Active</option>
+            <option value="PLANNING">Planning</option>
+            <option value="ON_HOLD">On Hold</option>
+            <option value="COMPLETED">Completed</option>
+        </select>
+        <select id="priorityFilter" onchange="filterProjects()"
+            class="px-3 py-2 text-sm bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-zinc-700 dark:text-supabase-text cursor-pointer">
+            <option value="">All Priority</option>
+            <option value="HIGH">High</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="LOW">Low</option>
+        </select>
+    </div>
+
+    <!-- Project Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5" id="projectGrid">
+        {% for project in projects %}
+        <div class="project-card bg-white dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none p-6 shadow-sm hover:shadow-md transition group"
+            data-status="{{ project.status }}"
+            data-priority="{{ project.priority }}"
+            data-title="{{ project.title|lower }}">
+            <div class="space-y-2 mb-5">
+                {% set colors = [
+                    'text-rose-600 dark:text-rose-400 hover:text-rose-500 dark:hover:text-rose-300',
+                    'text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 dark:hover:text-emerald-300',
+                    'text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300',
+                    'text-violet-600 dark:text-violet-400 hover:text-violet-500 dark:hover:text-violet-300',
+                    'text-amber-600 dark:text-amber-400 hover:text-amber-500 dark:hover:text-amber-300',
+                    'text-cyan-600 dark:text-cyan-400 hover:text-cyan-500 dark:hover:text-cyan-300',
+                    'text-fuchsia-600 dark:text-fuchsia-400 hover:text-fuchsia-500 dark:hover:text-fuchsia-300',
+                    'text-teal-600 dark:text-teal-400 hover:text-teal-500 dark:hover:text-teal-300'
+                ] %}
+                {% set color_idx = project.id % colors|length %}
+                <a href="{{ url_for('projects.project_details', project_id=project.id) }}"
+                    class="text-base font-bold {{ colors[color_idx] }} transition block">
+                    {{ project.title }}
+                </a>
+                <p class="text-sm text-zinc-500 dark:text-supabase-muted line-clamp-2 leading-relaxed">
+                    {{ project.description or 'No description provided.' }}
+                </p>
+            </div>
+
+            <div class="flex items-center justify-between mb-5">
+                <!-- Status badge — green for ACTIVE like screenshot -->
+                <span class="px-2.5 py-1 text-[11px] font-bold rounded-none uppercase tracking-wide
+                    {% if project.status == 'ACTIVE' %}bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400
+                    {% elif project.status == 'PLANNING' %}bg-blue-100 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400
+                    {% elif project.status == 'ON_HOLD' %}bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400
+                    {% else %}bg-zinc-100 dark:bg-supabase-card text-zinc-600 dark:text-supabase-muted{% endif %}">
+                    {{ project.status.replace('_', ' ') }}
+                </span>
+                <span class="text-[11px] font-semibold text-zinc-400 uppercase">
+                    {{ project.priority }} Priority
+                </span>
+            </div>
+
+            <!-- Progress -->
+            <div class="space-y-1.5 mb-5">
+                <div class="flex justify-between text-[11px] font-semibold text-zinc-400">
+                    <span>Progress</span>
+                    <span>{{ project.progress }}%</span>
+                </div>
+                <div class="w-full bg-zinc-100 dark:bg-supabase-card h-1.5 rounded-none overflow-hidden">
+                    <div class="bg-blue-500 h-full rounded-none transition-all duration-700" style="width: {{ project.progress }}%"></div>
+                </div>
+            </div>
+
+            <!-- Member avatars + task count -->
+            <div class="pt-4 border-t border-zinc-100 dark:border-supabase-border flex items-center justify-between">
+                <div class="flex -space-x-2">
+                    {% for member in project.members[:4] %}
+                    <div class="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 border-2 border-white dark:border-zinc-950 flex items-center justify-center text-white text-[10px] font-black" title="{{ member.username }}">
+                        {{ member.username[0]|upper }}
+                    </div>
+                    {% endfor %}
+                    {% if project.members|length > 4 %}
+                    <div class="w-7 h-7 rounded-full bg-zinc-100 dark:bg-supabase-card border-2 border-white dark:border-zinc-950 flex items-center justify-center text-[10px] font-bold text-zinc-500">
+                        +{{ project.members|length - 4 }}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="text-[11px] font-semibold text-zinc-400">{{ project.tasks.count() }} tasks</div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-span-3 py-20 text-center">
+            <div class="w-14 h-14 rounded-none bg-zinc-100 dark:bg-supabase-card flex items-center justify-center mx-auto mb-4">
+                <i data-lucide="folder-open" class="w-7 h-7 text-zinc-400"></i>
+            </div>
+            <h3 class="text-sm font-bold text-zinc-600 dark:text-supabase-muted mb-2">No projects yet</h3>
+            <p class="text-xs text-zinc-400 mb-5">Create your first project to get started</p>
+            <button onclick="openModal('createProjectModal')"
+                class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2.5 rounded-none transition-colors">
+                <i data-lucide="plus" class="w-4 h-4"></i> New Project
+            </button>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- ===== Create New Project Modal ===== -->
+<div id="createProjectModal" class="hidden fixed inset-0 bg-black/40 z-50 items-center justify-center p-4">
+    <div class="bg-white dark:bg-supabase-bg rounded-none shadow-2xl border border-zinc-200 dark:border-supabase-border w-full max-w-lg">
+        <!-- Modal Header -->
+        <div class="flex items-start justify-between px-6 py-4 border-b border-zinc-100 dark:border-supabase-border">
+            <div>
+                <h3 class="text-xl font-bold text-zinc-900 dark:text-white">Create New Project</h3>
+                <p class="text-sm text-zinc-500 mt-0.5">In workspace: <a href="#" class="text-blue-600 dark:text-blue-400 font-medium hover:underline">{{ org.name }}</a></p>
+            </div>
+            <button onclick="closeModal('createProjectModal')" class="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition p-1 -mt-0.5">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        <!-- Modal Body -->
+        <form action="{{ url_for('projects.create_project') }}" method="POST" class="px-6 py-4 space-y-3">
+            <div class="space-y-1.5 relative">
+                <label class="block text-sm font-medium text-zinc-700 dark:text-supabase-text">Project Name</label>
+                <div class="flex gap-2">
+                    <input type="text" name="title" id="project_title" required placeholder="Enter project name"
+                        class="flex-1 px-3 py-2 text-sm border border-zinc-300 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                    <button type="button" onclick="suggestProjectDetails()" class="p-2 bg-zinc-100 dark:bg-supabase-card text-blue-600 rounded-none hover:bg-blue-50 dark:hover:bg-blue-900/30 transition shadow-sm" title="AI Suggest Details">
+                        <i data-lucide="sparkles" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="space-y-1.5 relative">
+                <label class="block text-sm font-medium text-zinc-700 dark:text-supabase-text">Description</label>
+                <textarea name="description" id="project_description" required rows="2" placeholder="Describe your project"
+                    class="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition resize-none"></textarea>
+                <div id="suggestion_popup_description" class="hidden absolute left-0 top-full mt-1 w-full max-h-48 overflow-y-auto bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border p-3 shadow-xl z-50 text-xs rounded-none glass"></div>
+            </div>
+
+            <!-- Status + Priority -->
+            <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1.5 relative">
+                    <label class="block text-sm font-medium text-zinc-700 dark:text-supabase-text">Status</label>
+                    <select name="status" id="project_status" required
+                        class="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                        <option value="PLANNING" selected>Planning</option>
+                        <option value="ACTIVE">Active</option>
+                        <option value="ON_HOLD">On Hold</option>
+                        <option value="COMPLETED">Completed</option>
+                        <option value="CANCELLED">Cancelled</option>
+                    </select>
+                    <div id="suggestion_popup_status" class="hidden absolute left-0 top-full mt-1 w-full max-h-48 overflow-y-auto bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border p-3 shadow-xl z-50 text-xs rounded-none glass"></div>
+                </div>
+                <div class="space-y-1.5 relative">
+                    <label class="block text-sm font-medium text-zinc-700 dark:text-supabase-text">Priority</label>
+                    <select name="priority" id="project_priority" required
+                        class="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                        <option value="LOW">Low</option>
+                        <option value="MEDIUM" selected>Medium</option>
+                        <option value="HIGH">High</option>
+                        <option value="CRITICAL">Critical</option>
+                    </select>
+                    <div id="suggestion_popup_priority" class="hidden absolute left-0 top-full mt-1 w-full max-h-48 overflow-y-auto bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border p-3 shadow-xl z-50 text-xs rounded-none glass"></div>
+                </div>
+            </div>
+
+            <!-- Start / End Date -->
+            <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1.5 relative">
+                    <label class="block text-sm font-medium text-zinc-700 dark:text-supabase-text">Start Date</label>
+                    <input type="date" name="start_date" id="project_start_date" required
+                        class="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                    <div id="suggestion_popup_start_date" class="hidden absolute left-0 top-full mt-1 w-full max-h-48 overflow-y-auto bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border p-3 shadow-xl z-50 text-xs rounded-none glass"></div>
+                </div>
+                <div class="space-y-1.5 relative">
+                    <label class="block text-sm font-medium text-zinc-700 dark:text-supabase-text">End Date</label>
+                    <input type="date" name="end_date" id="project_end_date" required
+                        class="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                    <div id="suggestion_popup_end_date" class="hidden absolute left-0 top-full mt-1 w-full max-h-48 overflow-y-auto bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border p-3 shadow-xl z-50 text-xs rounded-none glass"></div>
+                </div>
+            </div>
+
+            <!-- Project Lead -->
+            <div class="space-y-1.5 relative">
+                <label class="block text-sm font-medium text-zinc-700 dark:text-supabase-text">Project Lead</label>
+                <select name="lead_id" id="project_lead" required
+                    class="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                    <option value="" disabled selected>Select a lead</option>
+                    {% for member in org_members %}
+                    <option value="{{ member.id }}">{{ member.username }}</option>
+                    {% endfor %}
+                </select>
+                <div id="suggestion_popup_lead" class="hidden absolute left-0 top-full mt-1 w-full max-h-48 overflow-y-auto bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border p-3 shadow-xl z-50 text-xs rounded-none glass"></div>
+            </div>
+
+            <!-- Team Members -->
+            <div class="space-y-1.5 relative">
+                <label class="block text-sm font-medium text-zinc-700 dark:text-supabase-text">Team Members</label>
+                <div class="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition cursor-pointer flex justify-between items-center" onclick="toggleElement('listTeamMembersDropdown')">
+                    <span id="selected-members-text" class="text-zinc-500 dark:text-supabase-muted truncate">Add team members</span>
+                    <i data-lucide="chevron-down" class="w-4 h-4 text-zinc-400"></i>
+                </div>
+                <div id="listTeamMembersDropdown" class="hidden absolute bottom-full mb-1 left-0 w-full bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none shadow-xl z-50 max-h-40 overflow-y-auto p-1.5">
+                    {% for member in org_members %}
+                    <label class="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-none cursor-pointer transition">
+                        <input type="checkbox" name="member_ids" value="{{ member.id }}" onchange="updateSelectedMembersText()" class="rounded-none text-blue-600 focus:ring-blue-500 w-4 h-4">
+                        <span class="text-sm font-medium text-zinc-700 dark:text-supabase-text">{{ member.username }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Action Buttons — matching screenshot precisely -->
+            <div class="flex items-center justify-end gap-3 pt-2">
+                <button type="button" onclick="closeModal('createProjectModal')"
+                    class="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-supabase-text border border-zinc-300 dark:border-zinc-600 rounded-none hover:bg-zinc-50 dark:hover:bg-zinc-800 transition">
+                    Cancel
+                </button>
+                <button type="submit"
+                    class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-none transition-colors shadow-sm">
+                    Create Project
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterProjects() {
+    const q = document.getElementById('projectSearch').value.toLowerCase();
+    const status = document.getElementById('statusFilter').value;
+    const priority = document.getElementById('priorityFilter').value;
+
+    document.querySelectorAll('.project-card').forEach(card => {
+        const titleMatch = card.dataset.title.includes(q);
+        const statusMatch = !status || card.dataset.status === status;
+        const priorityMatch = !priority || card.dataset.priority === priority;
+        card.style.display = (titleMatch && statusMatch && priorityMatch) ? '' : 'none';
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Prefill Start Date with Today if empty
+    const startDateInput = document.getElementById('project_start_date');
+    if (startDateInput && !startDateInput.value) {
+        startDateInput.value = new Date().toISOString().split('T')[0];
+    }
+
+    // 2. Prevent Enter key from submitting the form when focus is in inputs
+    const form = document.querySelector('#createProjectModal form');
+    if (form) {
+        form.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                if (event.target.tagName === 'TEXTAREA') {
+                    return; // Allow newlines in textareas
+                }
+                event.preventDefault();
+                // Focus the next empty/required field instead of submitting
+                const formElements = Array.from(form.elements).filter(el => {
+                    return (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA') && el.type !== 'submit' && el.type !== 'button' && el.type !== 'checkbox';
+                });
+                const currentIndex = formElements.indexOf(event.target);
+                if (currentIndex > -1 && currentIndex < formElements.length - 1) {
+                    formElements[currentIndex + 1].focus();
+                }
+            }
+        });
+        
+        // Form validation on submit
+        form.addEventListener('submit', function(event) {
+            const title = form.querySelector('[name="title"]').value.trim();
+            const description = form.querySelector('[name="description"]').value.trim();
+            const startDate = form.querySelector('[name="start_date"]').value;
+            const endDate = form.querySelector('[name="end_date"]').value;
+            const leadId = form.querySelector('[name="lead_id"]').value;
+            
+            // Check checkboxes
+            const memberCheckboxes = form.querySelectorAll('input[name="member_ids"]');
+            const checkedMembers = Array.from(memberCheckboxes).filter(cb => cb.checked);
+            
+            if (!title) {
+                showToast('Project Name is required.', 'error');
+                event.preventDefault();
+                return false;
+            }
+            if (!description) {
+                showToast('Description is required.', 'error');
+                event.preventDefault();
+                return false;
+            }
+            if (!startDate) {
+                showToast('Start Date is required.', 'error');
+                event.preventDefault();
+                return false;
+            }
+            if (!endDate) {
+                showToast('End Date is required.', 'error');
+                event.preventDefault();
+                return false;
+            }
+            if (new Date(startDate) > new Date(endDate)) {
+                showToast('Start Date cannot be after End Date.', 'error');
+                event.preventDefault();
+                return false;
+            }
+            if (!leadId) {
+                showToast('Project Lead is required.', 'error');
+                event.preventDefault();
+                return false;
+            }
+            if (checkedMembers.length === 0) {
+                showToast('At least one Team Member must be assigned.', 'error');
+                event.preventDefault();
+                return false;
+            }
+            return true;
+        });
+    }
+
+    // 3. AI Suggestions logic
+    const titleInput = document.getElementById('project_title');
+    let suggestionsCache = null;
+    let suggestionsLoading = false;
+
+    async function triggerSuggestionsFetch() {
+        if (!titleInput) return;
+        const title = titleInput.value.trim();
+        if (!title) {
+            suggestionsCache = null;
+            updatePopups();
+            return;
+        }
+        
+        suggestionsLoading = true;
+        updatePopups();
+        
+        try {
+            const response = await fetch('/ml/suggest', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: title })
+            });
+            const data = await response.json();
+            if (data && !data.error) {
+                suggestionsCache = data;
+            } else {
+                suggestionsCache = null;
+            }
+        } catch (e) {
+            console.error("AI pre-fetch failed", e);
+            suggestionsCache = null;
+        } finally {
+            suggestionsLoading = false;
+            updatePopups();
+        }
+    }
+
+    if (titleInput) {
+        titleInput.addEventListener('blur', triggerSuggestionsFetch);
+        let fetchTimeout = null;
+        titleInput.addEventListener('input', () => {
+            clearTimeout(fetchTimeout);
+            fetchTimeout = setTimeout(triggerSuggestionsFetch, 800);
+        });
+    }
+
+    function updatePopups() {
+        const descPopup = document.getElementById('suggestion_popup_description');
+        const priorityPopup = document.getElementById('suggestion_popup_priority');
+        const endDatePopup = document.getElementById('suggestion_popup_end_date');
+        if (!descPopup || !priorityPopup || !endDatePopup) return;
+        
+        const titleVal = titleInput ? titleInput.value.trim() : '';
+
+        if (!titleVal) {
+            const promptText = `
+                <div class="flex items-start gap-2 text-zinc-500 dark:text-supabase-muted">
+                    <i data-lucide="help-circle" class="w-4 h-4 mt-0.5 text-zinc-400"></i>
+                    <div>
+                        <span class="font-semibold text-zinc-600 dark:text-zinc-300">AI Suggestion</span>
+                        <p class="mt-0.5 text-[11px]">Please enter a project name first to get AI suggestions.</p>
+                    </div>
+                </div>`;
+            descPopup.innerHTML = promptText;
+            priorityPopup.innerHTML = promptText;
+            endDatePopup.innerHTML = promptText;
+            lucide.createIcons();
+            return;
+        }
+
+        if (suggestionsLoading) {
+            const loadingText = `
+                <div class="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                    <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                    <span class="font-semibold">Fetching AI suggestions...</span>
+                </div>`;
+            descPopup.innerHTML = loadingText;
+            priorityPopup.innerHTML = loadingText;
+            endDatePopup.innerHTML = loadingText;
+            lucide.createIcons();
+            return;
+        }
+
+        if (suggestionsCache) {
+            // Description
+            descPopup.innerHTML = `
+                <div class="space-y-2">
+                    <div class="flex items-start gap-2">
+                        <i data-lucide="sparkles" class="w-4 h-4 mt-0.5 text-blue-500 animate-pulse"></i>
+                        <div>
+                            <span class="font-bold text-zinc-800 dark:text-zinc-200">AI Suggested Description</span>
+                            <p class="text-zinc-500 dark:text-supabase-muted mt-1 italic line-clamp-3">"${suggestionsCache.suggested_description}"</p>
+                        </div>
+                    </div>
+                    <button type="button" id="apply-desc-btn" class="w-full mt-1.5 py-1 text-center bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 font-bold border border-blue-200 dark:border-blue-900 transition text-[11px]">
+                        Apply Suggestion
+                    </button>
+                </div>`;
+            const applyDescBtn = document.getElementById('apply-desc-btn');
+            if (applyDescBtn) {
+                applyDescBtn.addEventListener('click', () => applySuggestion('description'));
+            }
+
+            // Priority
+            priorityPopup.innerHTML = `
+                <div class="space-y-2">
+                    <div class="flex items-start gap-2">
+                        <i data-lucide="sparkles" class="w-4 h-4 mt-0.5 text-blue-500"></i>
+                        <div>
+                            <span class="font-bold text-zinc-800 dark:text-zinc-200">AI Predicted Priority</span>
+                            <p class="mt-1">Recommended: <span class="font-bold uppercase text-blue-600 dark:text-blue-400">${suggestionsCache.priority}</span></p>
+                        </div>
+                    </div>
+                    <button type="button" id="apply-priority-btn" class="w-full mt-1.5 py-1 text-center bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 font-bold border border-blue-200 dark:border-blue-900 transition text-[11px]">
+                        Apply Recommendation
+                    </button>
+                </div>`;
+            const applyPriorityBtn = document.getElementById('apply-priority-btn');
+            if (applyPriorityBtn) {
+                applyPriorityBtn.addEventListener('click', () => applySuggestion('priority'));
+            }
+
+            // End Date
+            endDatePopup.innerHTML = `
+                <div class="space-y-2">
+                    <div class="flex items-start gap-2">
+                        <i data-lucide="sparkles" class="w-4 h-4 mt-0.5 text-blue-500"></i>
+                        <div>
+                            <span class="font-bold text-zinc-800 dark:text-zinc-200">AI Suggested Deadline</span>
+                            <p class="mt-1">Recommended Date: <span class="font-bold text-blue-600 dark:text-blue-400">${suggestionsCache.suggested_date}</span></p>
+                            <p class="text-[10px] text-zinc-400">Duration: ~${Math.round(suggestionsCache.duration_days)} days</p>
+                        </div>
+                    </div>
+                    <button type="button" id="apply-date-btn" class="w-full mt-1.5 py-1 text-center bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 font-bold border border-blue-200 dark:border-blue-900 transition text-[11px]">
+                        Apply Suggested Date
+                    </button>
+                </div>`;
+            const applyDateBtn = document.getElementById('apply-date-btn');
+            if (applyDateBtn) {
+                applyDateBtn.addEventListener('click', () => applySuggestion('endDate'));
+            }
+        } else {
+            const errorText = `
+                <div class="flex items-start gap-2 text-red-500">
+                    <i data-lucide="alert-circle" class="w-4 h-4 mt-0.5"></i>
+                    <div>
+                        <span class="font-semibold text-zinc-600 dark:text-zinc-300">AI Suggestion Unavailable</span>
+                        <p class="text-[10px] mt-0.5">Could not fetch suggestion for this title.</p>
+                    </div>
+                </div>`;
+            descPopup.innerHTML = errorText;
+            priorityPopup.innerHTML = errorText;
+            endDatePopup.innerHTML = errorText;
+        }
+        lucide.createIcons();
+    }
+
+    window.applySuggestion = function(type) {
+        if (!suggestionsCache) return;
+        if (type === 'description') {
+            document.getElementById('project_description').value = suggestionsCache.suggested_description;
+            showToast('AI Description applied!');
+            document.getElementById('suggestion_popup_description').classList.add('hidden');
+        } else if (type === 'priority') {
+            document.getElementById('project_priority').value = suggestionsCache.priority.toUpperCase();
+            showToast('AI Priority applied!');
+            document.getElementById('suggestion_popup_priority').classList.add('hidden');
+        } else if (type === 'endDate') {
+            document.getElementById('project_end_date').value = suggestionsCache.suggested_date;
+            showToast('AI End Date applied!');
+            document.getElementById('suggestion_popup_end_date').classList.add('hidden');
+        }
+    }
+
+    // Static popups initial setups
+    const staticPopups = {
+        'project_status': `
+            <div class="flex items-start gap-2 text-zinc-600 dark:text-zinc-300">
+                <i data-lucide="info" class="w-4 h-4 mt-0.5 text-blue-500"></i>
+                <div>
+                    <span class="font-bold text-zinc-800 dark:text-zinc-200">Status Guidance</span>
+                    <p class="mt-1 text-[10px]">Most new projects start in <span class="font-bold text-blue-600 dark:text-blue-400">PLANNING</span> status while requirements are being drafted.</p>
+                </div>
+            </div>`,
+        'project_start_date': `
+            <div class="space-y-2 text-zinc-600 dark:text-zinc-300">
+                <div class="flex items-start gap-2">
+                    <i data-lucide="calendar" class="w-4 h-4 mt-0.5 text-blue-500"></i>
+                    <div>
+                        <span class="font-bold text-zinc-800 dark:text-zinc-200">Start Date</span>
+                        <p class="mt-1 text-[10px]">By default, projects start today.</p>
+                    </div>
+                </div>
+                <button type="button" id="set-today-btn" class="w-full mt-1.5 py-1 text-center bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 font-bold border border-blue-200 dark:border-blue-900 transition text-[11px]">
+                    Set to Today
+                </button>
+            </div>`,
+        'project_lead': `
+            <div class="flex items-start gap-2 text-zinc-600 dark:text-zinc-300">
+                <i data-lucide="user" class="w-4 h-4 mt-0.5 text-blue-500"></i>
+                <div>
+                    <span class="font-bold text-zinc-800 dark:text-zinc-200">Project Lead Assignment</span>
+                    <p class="mt-1 text-[10px]">Select a member to oversee tasks and manage the timeline.</p>
+                </div>
+            </div>`
+    };
+
+    // Setup start date today listener
+    const startPopup = document.getElementById('suggestion_popup_start_date');
+    if (startPopup) {
+        startPopup.innerHTML = staticPopups['project_start_date'];
+        setTimeout(() => {
+            const btn = document.getElementById('set-today-btn');
+            if (btn) {
+                btn.addEventListener('click', () => {
+                    const today = new Date().toISOString().split('T')[0];
+                    document.getElementById('project_start_date').value = today;
+                    showToast('Start date set to today!');
+                    startPopup.classList.add('hidden');
+                });
+            }
+        }, 100);
+    }
+    const statusPopup = document.getElementById('suggestion_popup_status');
+    if (statusPopup) statusPopup.innerHTML = staticPopups['project_status'];
+    const leadPopup = document.getElementById('suggestion_popup_lead');
+    if (leadPopup) leadPopup.innerHTML = staticPopups['project_lead'];
+
+    // Setup focus and blur events for all popup-enabled fields
+    const popupFields = [
+        { inputId: 'project_description', popupId: 'suggestion_popup_description' },
+        { inputId: 'project_status', popupId: 'suggestion_popup_status' },
+        { inputId: 'project_priority', popupId: 'suggestion_popup_priority' },
+        { inputId: 'project_start_date', popupId: 'suggestion_popup_start_date' },
+        { inputId: 'project_end_date', popupId: 'suggestion_popup_end_date' },
+        { inputId: 'project_lead', popupId: 'suggestion_popup_lead' }
+    ];
+
+    popupFields.forEach(({ inputId, popupId }) => {
+        const input = document.getElementById(inputId);
+        const popup = document.getElementById(popupId);
+        if (!input || !popup) return;
+
+        const showPopup = (event) => {
+            event.stopPropagation();
+            // Hide other popups first
+            popupFields.forEach(pf => {
+                const otherPopup = document.getElementById(pf.popupId);
+                if (otherPopup && pf.popupId !== popupId) {
+                    otherPopup.classList.add('hidden');
+                }
+            });
+            popup.classList.remove('hidden');
+            lucide.createIcons();
+        };
+
+        input.addEventListener('focus', showPopup);
+        input.addEventListener('click', showPopup);
+
+        popup.addEventListener('click', (event) => {
+            event.stopPropagation();
+        });
+    });
+
+    // Close popup on click outside
+    document.addEventListener('click', (e) => {
+        popupFields.forEach(({ inputId, popupId }) => {
+            const input = document.getElementById(inputId);
+            const popup = document.getElementById(popupId);
+            if (!input || !popup) return;
+
+            if (!input.contains(e.target) && !popup.contains(e.target)) {
+                popup.classList.add('hidden');
+            }
+        });
+    });
+
+    // Initialize popups content once
+    updatePopups();
+});
+
+async function suggestProjectDetails() {
+    const title = document.getElementById('project_title').value;
+    if (!title) {
+        showToast('Please enter a project name first.', 'error');
+        return;
+    }
+
+    const btn = event.currentTarget;
+    const originalContent = btn.innerHTML;
+    btn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i>';
+    lucide.createIcons();
+
+    try {
+        const response = await fetch('/ml/suggest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: title })
+        });
+        const data = await response.json();
+        
+        if (data.error) throw new Error(data.error);
+
+        // Fill fields
+        document.getElementById('project_description').value = data.suggested_description;
+        document.getElementById('project_priority').value = data.priority.toUpperCase();
+        document.getElementById('project_end_date').value = data.suggested_date;
+        
+        showToast('AI suggestions applied!');
+    } catch (e) {
+        showToast('AI suggestion failed.', 'error');
+    } finally {
+        btn.innerHTML = originalContent;
+        lucide.createIcons();
+    }
+}
+
+function updateSelectedMembersText() {
+    const checkboxes = document.querySelectorAll('#listTeamMembersDropdown input[name="member_ids"]');
+    const selectedNames = [];
+    checkboxes.forEach(cb => {
+        if (cb.checked) {
+            const labelText = cb.nextElementSibling.textContent.trim();
+            selectedNames.push(labelText);
+        }
+    });
+    
+    const span = document.getElementById('selected-members-text');
+    if (span) {
+        if (selectedNames.length === 0) {
+            span.textContent = 'Add team members';
+            span.className = 'text-zinc-500 dark:text-supabase-muted truncate';
+        } else {
+            span.textContent = selectedNames.join(', ');
+            span.className = 'text-zinc-900 dark:text-white font-semibold truncate';
+        }
+    }
+}
+</script>
+{% endblock %}
