@@ -32,4 +32,11 @@ def create_app(config_class=Config):
     # Import models so they are registered with SQLAlchemy
     from app import models
 
+    with app.app_context():
+        db.create_all()
+
+    # Pre-load ML models to eliminate cold-start latency on first prediction
+    from app.ml.inference import load_models
+    load_models()
+
     return app
