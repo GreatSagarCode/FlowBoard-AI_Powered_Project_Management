@@ -40,3 +40,5 @@ def create_app(config_class=Config):
     load_models()
 
     return app
+
+app = create_app()
