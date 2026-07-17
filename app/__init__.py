@@ -1,6 +1,6 @@
 from flask import Flask
 from config import Config
-from app.extensions import db, login_manager
+from app.extensions import db, login_manager, csrf, socketio
 
 def create_app(config_class=Config):
     app = Flask(__name__)
@@ -9,6 +9,11 @@ def create_app(config_class=Config):
     # Initialize Flask extensions here
     db.init_app(app)
     login_manager.init_app(app)
+    csrf.init_app(app)
+    socketio.init_app(app, async_mode='threading')
+    
+    # Register events
+    from app import events
 
     # Register blueprints here
     from app.auth.routes import bp as auth_bp
@@ -39,6 +44,18 @@ def create_app(config_class=Config):
     from app.ml.inference import load_models
     load_models()
 
+    # Initialize and start APScheduler
+    try:
+        from flask_apscheduler import APScheduler
+        scheduler = APScheduler()
+        scheduler.init_app(app)
+        
+        # Add the maintenance job to run every hour
+        from app.scheduler import run_maintenance_job
+        scheduler.add_job(id='maintenance_job', func=run_maintenance_job, args=[app], trigger='interval', hours=1)
+        scheduler.start()
+    except Exception as e:
+        print(f"Failed to start APScheduler: {e}")
+
     return app
 
-app = create_app()

@@ -46,6 +46,8 @@
                 <!-- Hidden textarea to store data for submission -->
                 <textarea name="content" id="content-textarea" class="hidden">{{ doc.content if doc else '' }}</textarea>
                 <!-- Quill Editor Container -->
+                <!-- NOTE: doc.content is rendered with |safe here because it has been sanitized
+                     by bleach in the backend (docs/routes.py) before being stored. -->
                 <div id="editor-container" class="bg-white dark:bg-supabase-bg">
                     {{ doc.content|safe if doc else '' }}
                 </div>

@@ -41,7 +41,7 @@ def _sanitize(text: str, max_len: int = 500) -> str:
     text = text.strip()
     if not text:
         return ""
-    text = re.sub(r'[^a-z0-9\s]', '', text.lower())
+    text = re.sub(r'[^a-z0-9\s\.\-\/]', '', text.lower())
     return text[:max_len]
 
 def predict_project(text: str) -> dict:

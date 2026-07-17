@@ -23,6 +23,7 @@
             </div>
 
             <!-- Subtasks -->
+            {% if not task.parent_id %}
             <div class="space-y-4 pt-4">
                 <h3 class="text-sm font-bold text-zinc-900 dark:text-white flex items-center gap-2">
                     <i data-lucide="list-todo" class="w-4 h-4"></i> Subtasks ({{ task.subtasks|length }})
@@ -50,6 +51,7 @@
                     </button>
                 </form>
             </div>
+            {% endif %}
 
             <!-- Comments -->
             <div class="space-y-6 pt-4">
@@ -57,7 +59,7 @@
                     <i data-lucide="message-square" class="w-4 h-4"></i> Comments ({{ task.comments.count() }})
                 </h3>
                 
-                <form action="{{ url_for('tasks.add_comment', task_id=task.id) }}" method="POST" class="relative">
+                <form onsubmit="event.preventDefault(); uploadTaskAttachment(event, {{ task.id }}, this)" action="{{ url_for('tasks.add_comment', task_id=task.id) }}" method="POST" class="relative">
                     <textarea name="content" required placeholder="Add a comment..." 
                         class="w-full px-4 py-3 text-sm bg-white dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition resize-none min-h-[80px]"></textarea>
                     <button type="submit" class="absolute right-3 bottom-3 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-[10px] font-bold px-3 py-1.5 rounded-none hover:scale-105 active:scale-95 transition">
@@ -132,7 +134,7 @@
                 <!-- Assignee -->
                 <div class="space-y-2">
                     <label class="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Assignee</label>
-                    <select onchange="updateTaskField({{ task.id }}, 'assignee_id', this.value)" class="w-full appearance-none outline-none flex items-center gap-2 px-3 py-2 bg-white dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none text-xs font-bold text-zinc-700 dark:text-supabase-text cursor-pointer focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                    <select {% if task.parent_id %}disabled{% endif %} onchange="updateTaskField({{ task.id }}, 'assignee_id', this.value)" class="w-full appearance-none outline-none flex items-center gap-2 px-3 py-2 bg-white dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none text-xs font-bold text-zinc-700 dark:text-supabase-text cursor-pointer focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition {% if task.parent_id %}opacity-60 cursor-not-allowed{% endif %}">
                         <option value="">Unassigned</option>
                         {% for user in org_members %}
                         <option value="{{ user.id }}" {% if task.assignee_id == user.id %}selected{% endif %}>{{ user.username }}</option>
@@ -148,6 +150,11 @@
                             onchange="updateTaskField({{ task.id }}, 'due_date', this.value)"
                             class="w-full appearance-none outline-none px-3 py-2 bg-white dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none text-xs font-bold text-zinc-700 dark:text-supabase-text cursor-pointer focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
                     </div>
+                    {% if task.parent_id %}
+                    <p class="text-[9px] text-zinc-400 italic flex items-center gap-1">
+                        <i data-lucide="info" class="w-3 h-3"></i> Inherited from parent. You can override this date.
+                    </p>
+                    {% endif %}
                 </div>
             </div>
 
@@ -177,7 +184,7 @@
                     <i data-lucide="paperclip" class="w-3.5 h-3.5"></i> Attachments ({{ task.attachments|length }})
                 </h3>
                 
-                <form action="{{ url_for('tasks.attach_file', task_id=task.id) }}" method="POST" enctype="multipart/form-data" class="flex items-center gap-2">
+                <form onsubmit="event.preventDefault(); uploadTaskAttachment(event, {{ task.id }}, this)" action="{{ url_for('tasks.attach_file', task_id=task.id) }}" method="POST" enctype="multipart/form-data" class="flex items-center gap-2">
                     <input type="file" name="file" required class="flex-1 text-[10px] text-zinc-500 file:mr-2 file:py-1 file:px-2 file:rounded-none file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
                     <button type="submit" class="px-2 py-1 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-[10px] font-bold rounded-none hover:scale-105 transition">Upload</button>
                 </form>
@@ -185,33 +192,23 @@
                 {% if task.attachments %}
                     <ul class="space-y-2 mt-3">
                     {% for attachment in task.attachments %}
-                        <li class="flex items-center justify-between">
-                            <a href="{{ url_for('static', filename=attachment.file_path) }}" target="_blank" class="flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline truncate">
-                                <i data-lucide="file" class="w-3.5 h-3.5"></i> {{ attachment.filename }}
-                            </a>
-                            <span class="text-[9px] text-zinc-400">{{ attachment.uploaded_by.username }}</span>
+                        <li class="flex items-center justify-between group">
+                            <div class="flex items-center gap-2 overflow-hidden">
+                                <a href="{{ url_for('static', filename=attachment.file_path) }}" target="_blank" class="flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline truncate">
+                                    <i data-lucide="file" class="w-3.5 h-3.5 flex-shrink-0"></i> <span class="truncate">{{ attachment.filename }}</span>
+                                </a>
+                                <span class="text-[9px] text-zinc-400 flex-shrink-0">{{ attachment.uploaded_by.username }}</span>
+                            </div>
+                            <form action="{{ url_for('tasks.delete_attachment', attachment_id=attachment.id) }}" method="POST" onsubmit="return confirm('Delete this attachment?');" class="opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button type="submit" class="p-1 text-zinc-400 hover:text-red-500 transition"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                            </form>
                         </li>
                     {% endfor %}
                     </ul>
                 {% endif %}
             </div>
 
-            <!-- AI Insights Panel -->
-            <div class="space-y-4 bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-500/5 dark:to-blue-500/5 p-6 rounded-none border border-blue-100 dark:border-blue-500/10">
-                <h3 class="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest flex items-center gap-2">
-                    <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> AI Predictions
-                </h3>
-                <div class="space-y-4">
-                    <div class="flex items-center justify-between">
-                        <span class="text-[11px] font-medium text-zinc-500 dark:text-supabase-muted">Auto-Category</span>
-                        <span class="px-2 py-0.5 bg-white dark:bg-supabase-card border border-blue-100 dark:border-blue-500/20 text-blue-600 dark:text-blue-300 text-[10px] font-bold rounded-none shadow-sm">{{ task.category or 'TBD' }}</span>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <span class="text-[11px] font-medium text-zinc-500 dark:text-supabase-muted">Est. Duration</span>
-                        <span class="text-[11px] font-bold text-zinc-900 dark:text-white">{{ task.duration_days|round(1) if task.duration_days else '0.0' }} days</span>
-                    </div>
-                </div>
-            </div>
+
         </div>
     </div>
 </div>

@@ -9,9 +9,19 @@ from datetime import datetime
 @login_required
 def create(project_id):
     project = Project.query.get_or_404(project_id)
+    from flask import session
+    active_org_id = session.get('active_org_id')
+    if project.organization_id != active_org_id:
+        flash('Access denied.', 'error')
+        return redirect(url_for('main.index'))
     if request.method == 'POST':
         title = request.form.get('title')
         content = request.form.get('content')
+        import bleach
+        allowed_tags = ['h1', 'h2', 'h3', 'p', 'br', 'strong', 'em', 'u', 's', 'blockquote', 'pre', 'ol', 'ul', 'li', 'a', 'img', 'span']
+        allowed_attrs = {'*': ['class', 'style'], 'a': ['href', 'target'], 'img': ['src', 'alt']}
+        if content:
+            content = bleach.clean(content, tags=allowed_tags, attributes=allowed_attrs, styles=['color', 'background-color'])
         
         if not title:
             flash('Title is required', 'error')
@@ -43,9 +53,22 @@ def edit(doc_id):
     doc = Document.query.get_or_404(doc_id)
     project = doc.project
     
+    from flask import session
+    active_org_id = session.get('active_org_id')
+    if project.organization_id != active_org_id:
+        flash('Access denied.', 'error')
+        return redirect(url_for('main.index'))
+    
     if request.method == 'POST':
         doc.title = request.form.get('title')
-        doc.content = request.form.get('content')
+        content = request.form.get('content')
+        import bleach
+        allowed_tags = ['h1', 'h2', 'h3', 'p', 'br', 'strong', 'em', 'u', 's', 'blockquote', 'pre', 'ol', 'ul', 'li', 'a', 'img', 'span']
+        allowed_attrs = {'*': ['class', 'style'], 'a': ['href', 'target'], 'img': ['src', 'alt']}
+        if content:
+            doc.content = bleach.clean(content, tags=allowed_tags, attributes=allowed_attrs, styles=['color', 'background-color'])
+        else:
+            doc.content = ''
         
         task_id = request.form.get('task_id')
         if task_id and not task_id.strip():
@@ -66,6 +89,12 @@ def edit(doc_id):
 def delete(doc_id):
     doc = Document.query.get_or_404(doc_id)
     project_id = doc.project_id
+    
+    from flask import session
+    active_org_id = session.get('active_org_id')
+    if doc.project.organization_id != active_org_id:
+        flash('Access denied.', 'error')
+        return redirect(url_for('main.index'))
     db.session.delete(doc)
     db.session.commit()
     flash('Document deleted', 'success')

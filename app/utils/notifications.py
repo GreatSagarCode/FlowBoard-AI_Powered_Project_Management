@@ -15,6 +15,15 @@ def create_notification(user_id, title, message, type='info', link=None):
         )
         db.session.add(notification)
         db.session.commit()
+        
+        from app.extensions import socketio
+        socketio.emit('new_notification', {
+            'title': title,
+            'message': message,
+            'type': type,
+            'link': link
+        }, room=f"user_{user_id}")
+        
         return True
     except Exception as e:
         print(f"Error creating notification: {e}")

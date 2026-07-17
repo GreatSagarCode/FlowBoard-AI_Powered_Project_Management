@@ -14,6 +14,7 @@ class Organization(db.Model):
     slug = db.Column(db.String(100), unique=True, nullable=False)
     logo_path = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     projects = db.relationship('Project', backref='organization', lazy='dynamic', cascade='all, delete-orphan')
     memberships = db.relationship('Membership', backref='organization', lazy='dynamic', cascade='all, delete-orphan')
@@ -23,6 +24,8 @@ class Membership(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     organization_id = db.Column(db.Integer, db.ForeignKey('organization.id'), nullable=False)
     role = db.Column(db.String(20), default='MEMBER') # ADMIN, MEMBER
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     user = db.relationship('User', backref=db.backref('memberships', lazy='dynamic'))
 
@@ -33,6 +36,7 @@ class PendingInvitation(db.Model):
     role = db.Column(db.String(20), default='MEMBER')
     token = db.Column(db.String(100), unique=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     organization = db.relationship('Organization', backref=db.backref('pending_invitations', lazy='dynamic', cascade='all, delete-orphan'))
 
@@ -41,6 +45,9 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(64), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
+    avatar_path = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     projects_created = db.relationship('Project', foreign_keys='Project.created_by_id', backref='author', lazy='dynamic')
     comments = db.relationship('Comment', backref='author', lazy='dynamic')
@@ -59,6 +66,8 @@ class Project(db.Model):
     priority = db.Column(db.String(50), default='MEDIUM')
     start_date = db.Column(db.DateTime, default=datetime.utcnow)
     end_date = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     lead_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     # progress = db.Column(db.Integer, default=0) # Removed in favor of dynamic property
 
@@ -82,6 +91,8 @@ class Sprint(db.Model):
     start_date = db.Column(db.DateTime, nullable=True)
     end_date = db.Column(db.DateTime, nullable=True)
     is_active = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
     
     tasks = db.relationship('Task', backref='sprint', lazy='dynamic')
@@ -112,6 +123,7 @@ class Task(db.Model):
     
     status = db.Column(db.String(20), default='To Do') 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     assignee_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     due_date = db.Column(db.DateTime, nullable=True)
@@ -134,6 +146,7 @@ class Comment(db.Model):
     task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class Document(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -157,6 +170,7 @@ class Notification(db.Model):
     type = db.Column(db.String(20), default='info') # info, success, warning, error
     is_read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     link = db.Column(db.String(255), nullable=True)
 
     user = db.relationship('User', backref=db.backref('notifications', lazy='dynamic'))
@@ -169,6 +183,7 @@ class Attachment(db.Model):
     project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=True)
     uploaded_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     uploaded_by = db.relationship('User', backref='attachments')
     task = db.relationship('Task', backref=db.backref('attachments', cascade='all, delete-orphan'))
@@ -181,6 +196,7 @@ class ActivityLog(db.Model):
     task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=True)
     project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     user = db.relationship('User', backref='activity_logs')
     task = db.relationship('Task', backref=db.backref('activity_logs', cascade='all, delete-orphan'))

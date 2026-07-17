@@ -78,6 +78,11 @@ def invite():
     if not org:
         flash('No active workspace found.', 'error')
         return redirect(url_for('main.index'))
+        
+    membership = Membership.query.filter_by(user_id=current_user.id, organization_id=active_org_id).first()
+    if not membership or membership.role == 'CONTRIBUTOR':
+        flash('Contributors are not allowed to invite others.', 'error')
+        return redirect(url_for('main.index'))
 
     emails_raw = request.form.get('emails', '')
     role = request.form.get('role', 'MEMBER').upper()

@@ -28,7 +28,7 @@
             <h1 class="text-[22px] font-bold {{ base_colors[color_idx] }}">{{ project.title }}</h1>
             <span class="px-2 py-1 bg-zinc-100 text-zinc-600 dark:bg-supabase-card dark:text-supabase-muted text-[10px] font-bold rounded-none uppercase tracking-wide border border-zinc-200 dark:border-supabase-border">ACTIVE</span>
         </div>
-        <button onclick="openModal('createTaskModal')" class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-none transition-all">
+        <button onclick="openCreateTaskWithSprint(null)" class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-none transition-all">
             <i data-lucide="plus" class="w-4 h-4"></i> New Task
         </button>
     </div>
@@ -193,7 +193,7 @@
                     </div>
                 </div>
                 <div class="sprint-dropzone min-h-[50px] divide-y divide-zinc-100 dark:divide-zinc-800/50" data-sprint-id="{{ sprint.id }}">
-                    {% for t in sprint.tasks.all() if not t.parent_id %}
+                    {% for t in sprint.tasks.filter_by(parent_id=None).all() %}
                     <div data-id="{{ t.id }}" data-status="{{ t.status }}" data-type="{{ t.issue_type }}" data-priority="{{ t.priority }}" data-assignee="{{ t.assignee_id or 'unassigned' }}" onclick="openTaskDetails({{ t.id }})" class="task-row group flex items-center justify-between px-6 py-3.5 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition-all cursor-pointer">
                         <div class="flex items-center gap-4 flex-1">
                             <i data-lucide="{{ {'Bug': 'bug', 'Feature': 'zap', 'Improvement': 'git-pull-request', 'Task': 'check-square'}.get(t.issue_type, 'check-square') }}" class="w-4 h-4 {{ {'Bug': 'text-rose-500', 'Feature': 'text-blue-500', 'Improvement': 'text-purple-500', 'Task': 'text-emerald-500'}.get(t.issue_type, 'text-zinc-400') }}"></i>
@@ -302,8 +302,9 @@
                     </tr>
                 </thead>
                 <tbody id="task-table-body" class="divide-y divide-zinc-100 dark:divide-zinc-800/50">
-                    {% for t in project.tasks.all() %}
+                    {% for t in tasks_pagination.items %}
                     <tr class="task-row group hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition-all" 
+                        data-id="{{ t.id }}"
                         data-status="{{ t.status }}" 
                         data-type="{{ t.issue_type }}" 
                         data-priority="{{ t.priority }}" 
@@ -312,7 +313,12 @@
                             <input type="checkbox" onchange="updateBulkDeleteButton()" class="task-check rounded-none border-zinc-300 text-blue-600 focus:ring-blue-500" value="{{ t.id }}">
                         </td>
                         <td class="px-6 py-4">
-                            <span onclick="openTaskDetails({{ t.id }})" class="text-sm font-bold text-zinc-900 dark:text-white cursor-pointer hover:text-blue-600 transition-colors tracking-tight flex items-center gap-1">{% if t.parent_id %}<i data-lucide="corner-down-right" class="w-3.5 h-3.5 text-zinc-400 ml-4"></i>{% else %}<span class="text-xs font-bold text-zinc-400 uppercase tracking-wide mr-1">PROJ-{{ t.id }}</span>{% endif %} {{ t.title }}</span>
+                            <span onclick="openTaskDetails({{ t.id }})" class="text-sm font-bold text-zinc-900 dark:text-white cursor-pointer hover:text-blue-600 transition-colors tracking-tight flex items-center gap-1">
+                                <span class="text-xs font-bold text-zinc-400 uppercase tracking-wide mr-1">PROJ-{{ t.id }}</span> {{ t.title }}
+                                {% if t.subtasks|length > 0 %}
+                                <span class="text-[10px] font-medium text-zinc-400 flex items-center gap-1 ml-2"><i data-lucide="list-checks" class="w-3 h-3"></i> {{ t.subtasks|length }}</span>
+                                {% endif %}
+                            </span>
                         </td>
                         <td class="px-6 py-4">
                             <div class="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider {% if t.issue_type == 'Bug' %}text-rose-500{% elif t.issue_type == 'Feature' %}text-blue-500{% elif t.issue_type == 'Improvement' %}text-purple-500{% else %}text-emerald-500{% endif %}">
@@ -348,10 +354,112 @@
                             </div>
                         </td>
                     </tr>
+                    {% for st in t.subtasks %}
+                    <tr class="task-row subtask-row group hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-all bg-zinc-50/30 dark:bg-supabase-card/20" 
+                        data-id="{{ st.id }}"
+                        data-parent-id="{{ t.id }}"
+                        data-status="{{ st.status }}" 
+                        data-type="{{ st.issue_type }}" 
+                        data-priority="{{ st.priority }}" 
+                        data-assignee="{{ st.assignee_id }}">
+                        <td class="px-6 py-3">
+                            <input type="checkbox" onchange="updateBulkDeleteButton()" class="task-check rounded-none border-zinc-300 text-blue-600 focus:ring-blue-500" value="{{ st.id }}">
+                        </td>
+                        <td class="px-6 py-3">
+                            <span onclick="openTaskDetails({{ st.id }})" class="text-sm font-semibold text-zinc-700 dark:text-supabase-muted cursor-pointer hover:text-blue-600 transition-colors tracking-tight flex items-center gap-1">
+                                <i data-lucide="corner-down-right" class="w-3.5 h-3.5 text-zinc-400 ml-6"></i>
+                                {{ st.title }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-3">
+                            <div class="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                                <i data-lucide="check-square" class="w-4 h-4"></i>
+                                Subtask
+                            </div>
+                        </td>
+                        <td class="px-6 py-3">
+                            <span class="px-3 py-1 rounded-none text-[10px] font-bold uppercase tracking-widest {% if st.priority|upper == 'HIGH' or st.priority|upper == 'HIGHEST' %}bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400{% elif st.priority|upper == 'MEDIUM' %}bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400{% else %}bg-zinc-100 text-zinc-600 dark:bg-supabase-card{% endif %}">{{ st.priority }}</span>
+                        </td>
+                        <td class="px-6 py-3">
+                            <div class="relative inline-flex items-center">
+                                <select onchange="updateTaskStatus({{ st.id }}, this.value)" class="appearance-none bg-transparent text-sm font-bold text-zinc-800 dark:text-supabase-text cursor-pointer focus:outline-none pr-6">
+                                    <option value="To Do" {% if st.status == 'To Do' %}selected{% endif %}>To Do</option>
+                                    <option value="In Progress" {% if st.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                                    <option value="Done" {% if st.status == 'Done' %}selected{% endif %}>Done</option>
+                                </select>
+                                <i data-lucide="chevron-down" class="w-3.5 h-3.5 absolute right-0 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"></i>
+                            </div>
+                        </td>
+                        <td class="px-6 py-3">
+                            <div class="flex items-center gap-2">
+                                <div class="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0">
+                                    {{ st.assignee.username[0]|upper if st.assignee else '?' }}
+                                </div>
+                                <span class="text-xs font-semibold text-zinc-600 dark:text-supabase-muted">{{ st.assignee.username if st.assignee else 'Unassigned' }}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-3">
+                            <div class="flex items-center gap-2 text-sm font-medium text-zinc-500">
+                                <i data-lucide="calendar" class="w-4 h-4 text-zinc-400"></i>
+                                {{ st.due_date.strftime('%d %b') if st.due_date else '--' }}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+
+        <!-- Task Pagination -->
+        {% if tasks_pagination and tasks_pagination.pages > 1 %}
+        <div class="flex items-center justify-between border-t border-zinc-200 dark:border-supabase-border bg-zinc-50 dark:bg-supabase-card/50 px-4 py-3 sm:px-6">
+            <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                <div>
+                    <p class="text-sm text-zinc-700 dark:text-supabase-muted">
+                        Showing <span class="font-medium">{{ tasks_pagination.first_item }}</span> to <span class="font-medium">{{ tasks_pagination.last_item }}</span> of <span class="font-medium">{{ tasks_pagination.total }}</span> results
+                    </p>
+                </div>
+                <div>
+                    <nav class="isolate inline-flex -space-x-px shadow-sm" aria-label="Pagination">
+                        {% if tasks_pagination.has_prev %}
+                        <a href="{{ url_for('projects.project_details', project_id=project.id, tab='tasks', task_page=tasks_pagination.prev_num) }}" class="relative inline-flex items-center rounded-l-md px-2 py-2 text-zinc-400 ring-1 ring-inset ring-zinc-300 dark:ring-supabase-border hover:bg-zinc-100 dark:hover:bg-zinc-800 focus:z-20 focus:outline-offset-0 bg-white dark:bg-supabase-card">
+                            <span class="sr-only">Previous</span>
+                            <i data-lucide="chevron-left" class="h-5 w-5"></i>
+                        </a>
+                        {% else %}
+                        <span class="relative inline-flex items-center rounded-l-md px-2 py-2 text-zinc-300 dark:text-zinc-600 ring-1 ring-inset ring-zinc-300 dark:ring-supabase-border cursor-not-allowed bg-white dark:bg-supabase-card">
+                            <i data-lucide="chevron-left" class="h-5 w-5"></i>
+                        </span>
+                        {% endif %}
+                        
+                        {% for p in tasks_pagination.iter_pages() %}
+                            {% if p %}
+                                {% if p == tasks_pagination.page %}
+                                <span class="relative z-10 inline-flex items-center bg-blue-600 px-4 py-2 text-sm font-semibold text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">{{ p }}</span>
+                                {% else %}
+                                <a href="{{ url_for('projects.project_details', project_id=project.id, tab='tasks', task_page=p) }}" class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-zinc-900 dark:text-white ring-1 ring-inset ring-zinc-300 dark:ring-supabase-border hover:bg-zinc-50 dark:hover:bg-zinc-800 focus:z-20 focus:outline-offset-0 bg-white dark:bg-supabase-card">{{ p }}</a>
+                                {% endif %}
+                            {% else %}
+                                <span class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-zinc-700 dark:text-supabase-muted ring-1 ring-inset ring-zinc-300 dark:ring-supabase-border bg-white dark:bg-supabase-card">...</span>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if tasks_pagination.has_next %}
+                        <a href="{{ url_for('projects.project_details', project_id=project.id, tab='tasks', task_page=tasks_pagination.next_num) }}" class="relative inline-flex items-center rounded-r-md px-2 py-2 text-zinc-400 ring-1 ring-inset ring-zinc-300 dark:ring-supabase-border hover:bg-zinc-100 dark:hover:bg-zinc-800 focus:z-20 focus:outline-offset-0 bg-white dark:bg-supabase-card">
+                            <span class="sr-only">Next</span>
+                            <i data-lucide="chevron-right" class="h-5 w-5"></i>
+                        </a>
+                        {% else %}
+                        <span class="relative inline-flex items-center rounded-r-md px-2 py-2 text-zinc-300 dark:text-zinc-600 ring-1 ring-inset ring-zinc-300 dark:ring-supabase-border cursor-not-allowed bg-white dark:bg-supabase-card">
+                            <i data-lucide="chevron-right" class="h-5 w-5"></i>
+                        </span>
+                        {% endif %}
+                    </nav>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <div id="tab-board" class="tab-content {% if request.args.get('tab') != 'board' %}hidden{% endif %}">
@@ -379,7 +487,7 @@
                     </div>
                 </div>
                 <div id="col-todo" data-status="To Do" class="kanban-col flex-1 space-y-3 overflow-y-auto no-scrollbar pb-10">
-                    {% for t in active_sprint.tasks.all() if t.status == 'To Do' %}
+                    {% for t in active_sprint.tasks.filter_by(status='To Do', parent_id=None).all() %}
                     <div data-id="{{ t.id }}" data-status="{{ t.status }}" data-type="{{ t.issue_type }}" data-priority="{{ t.priority }}" data-assignee="{{ t.assignee_id or 'unassigned' }}" class="kanban-card bg-white dark:bg-supabase-bg p-4 rounded-none border border-zinc-200 dark:border-supabase-border cursor-grab active:cursor-grabbing hover:border-blue-500/50 transition-all group">
                         <div class="flex items-start justify-between mb-3">
                             <i data-lucide="{{ {'Bug': 'bug', 'Feature': 'zap', 'Improvement': 'git-pull-request', 'Task': 'check-square'}.get(t.issue_type, 'check-square') }}" class="w-4 h-4 {{ {'Bug': 'text-rose-500', 'Feature': 'text-blue-500', 'Improvement': 'text-purple-500', 'Task': 'text-emerald-500'}.get(t.issue_type, 'text-zinc-400') }}"></i>
@@ -388,7 +496,6 @@
                             </div>
                         </div>
                         <h4 class="text-sm font-bold text-zinc-900 dark:text-white mb-3 line-clamp-2 tracking-tight">
-                            {% if t.parent_id %}<div class="text-[10px] font-medium text-zinc-500 mb-1 flex items-center gap-1"><i data-lucide="corner-down-right" class="w-3 h-3"></i> Subtask</div>{% endif %}
                             {{ t.title }}
                         </h4>
                         <div class="flex items-center justify-between">
@@ -402,6 +509,17 @@
                                 <span class="text-xs font-bold">{{ t.due_date.strftime('%b %d') if t.due_date else 'No date' }}</span>
                             </div>
                         </div>
+                        {% if t.subtasks|length > 0 %}
+                        <div class="mt-3 space-y-2 border-t border-zinc-100 dark:border-supabase-border pt-2">
+                            {% for st in t.subtasks %}
+                            <div onclick="event.stopPropagation(); openTaskDetails({{ st.id }})" class="flex items-center gap-2 text-[11px] text-zinc-600 dark:text-supabase-muted hover:text-blue-500 cursor-pointer">
+                                <i data-lucide="corner-down-right" class="w-3 h-3 text-zinc-400"></i>
+                                <span class="truncate {% if st.status == 'Done' %}line-through opacity-60{% endif %}">{{ st.title }}</span>
+                                <span class="ml-auto text-[9px] px-1.5 py-0.5 bg-zinc-100 dark:bg-supabase-card rounded-none whitespace-nowrap">{{ st.status }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
                     </div>
                     {% endfor %}
                 </div>
@@ -417,7 +535,7 @@
                     </div>
                 </div>
                 <div id="col-progress" data-status="In Progress" class="kanban-col flex-1 space-y-3 overflow-y-auto no-scrollbar pb-10">
-                    {% for t in active_sprint.tasks.all() if t.status == 'In Progress' %}
+                    {% for t in active_sprint.tasks.filter_by(status='In Progress', parent_id=None).all() %}
                     <div data-id="{{ t.id }}" data-status="{{ t.status }}" data-type="{{ t.issue_type }}" data-priority="{{ t.priority }}" data-assignee="{{ t.assignee_id or 'unassigned' }}" class="kanban-card bg-white dark:bg-supabase-bg p-4 rounded-none border border-zinc-200 dark:border-supabase-border cursor-grab active:cursor-grabbing hover:border-blue-500/50 transition-all group">
                         <div class="flex items-start justify-between mb-3">
                             <i data-lucide="{{ {'Bug': 'bug', 'Feature': 'zap', 'Improvement': 'git-pull-request', 'Task': 'check-square'}.get(t.issue_type, 'check-square') }}" class="w-4 h-4 {{ {'Bug': 'text-rose-500', 'Feature': 'text-blue-500', 'Improvement': 'text-purple-500', 'Task': 'text-emerald-500'}.get(t.issue_type, 'text-zinc-400') }}"></i>
@@ -426,7 +544,6 @@
                             </div>
                         </div>
                         <h4 class="text-sm font-bold text-zinc-900 dark:text-white mb-3 line-clamp-2 tracking-tight">
-                            {% if t.parent_id %}<div class="text-[10px] font-medium text-zinc-500 mb-1 flex items-center gap-1"><i data-lucide="corner-down-right" class="w-3 h-3"></i> Subtask</div>{% endif %}
                             {{ t.title }}
                         </h4>
                         <div class="flex items-center justify-between">
@@ -440,6 +557,17 @@
                                 <span class="text-xs font-bold">{{ t.due_date.strftime('%b %d') if t.due_date else 'No date' }}</span>
                             </div>
                         </div>
+                        {% if t.subtasks|length > 0 %}
+                        <div class="mt-3 space-y-2 border-t border-zinc-100 dark:border-supabase-border pt-2">
+                            {% for st in t.subtasks %}
+                            <div onclick="event.stopPropagation(); openTaskDetails({{ st.id }})" class="flex items-center gap-2 text-[11px] text-zinc-600 dark:text-supabase-muted hover:text-blue-500 cursor-pointer">
+                                <i data-lucide="corner-down-right" class="w-3 h-3 text-zinc-400"></i>
+                                <span class="truncate {% if st.status == 'Done' %}line-through opacity-60{% endif %}">{{ st.title }}</span>
+                                <span class="ml-auto text-[9px] px-1.5 py-0.5 bg-zinc-100 dark:bg-supabase-card rounded-none whitespace-nowrap">{{ st.status }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
                     </div>
                     {% endfor %}
                 </div>
@@ -455,13 +583,12 @@
                     </div>
                 </div>
                 <div id="col-done" data-status="Done" class="kanban-col flex-1 space-y-3 overflow-y-auto no-scrollbar pb-10">
-                    {% for t in active_sprint.tasks.all() if t.status == 'Done' %}
+                    {% for t in active_sprint.tasks.filter_by(status='Done', parent_id=None).all() %}
                     <div data-id="{{ t.id }}" data-status="{{ t.status }}" data-type="{{ t.issue_type }}" data-priority="{{ t.priority }}" data-assignee="{{ t.assignee_id or 'unassigned' }}" class="kanban-card bg-white dark:bg-supabase-bg p-4 rounded-none border border-zinc-200 dark:border-supabase-border cursor-grab active:cursor-grabbing hover:border-blue-500/50 transition-all group">
                         <div class="flex items-start justify-between mb-3 opacity-60">
                             <i data-lucide="{{ {'Bug': 'bug', 'Feature': 'zap', 'Improvement': 'git-pull-request', 'Task': 'check-square'}.get(t.issue_type, 'check-square') }}" class="w-4 h-4 text-zinc-400"></i>
                         </div>
                         <h4 class="text-sm font-bold text-zinc-800 dark:text-supabase-text mb-3 line-clamp-2 line-through opacity-60 tracking-tight">
-                            {% if t.parent_id %}<div class="text-[10px] font-medium text-zinc-500 mb-1 flex items-center gap-1"><i data-lucide="corner-down-right" class="w-3 h-3"></i> Subtask</div>{% endif %}
                             {{ t.title }}
                         </h4>
                         <div class="flex items-center justify-between opacity-60">
@@ -475,6 +602,17 @@
                                 <span class="text-xs font-bold">Completed</span>
                             </div>
                         </div>
+                        {% if t.subtasks|length > 0 %}
+                        <div class="mt-3 space-y-2 border-t border-zinc-100 dark:border-supabase-border pt-2 opacity-60">
+                            {% for st in t.subtasks %}
+                            <div onclick="event.stopPropagation(); openTaskDetails({{ st.id }})" class="flex items-center gap-2 text-[11px] text-zinc-600 dark:text-supabase-muted hover:text-blue-500 cursor-pointer">
+                                <i data-lucide="corner-down-right" class="w-3 h-3 text-zinc-400"></i>
+                                <span class="truncate {% if st.status == 'Done' %}line-through opacity-60{% endif %}">{{ st.title }}</span>
+                                <span class="ml-auto text-[9px] px-1.5 py-0.5 bg-zinc-100 dark:bg-supabase-card rounded-none whitespace-nowrap">{{ st.status }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
                     </div>
                     {% endfor %}
                 </div>
@@ -522,7 +660,9 @@
         <div class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none overflow-hidden shadow-sm">
             <div class="p-6 border-b border-zinc-100 dark:border-supabase-border flex items-center justify-between">
                 <div class="flex items-center gap-4">
-                    <h2 id="calendar-month" class="text-xl font-bold text-zinc-900 dark:text-white">October 2025</h2>
+                    <h2 id="calendar-month" class="text-xl font-bold text-zinc-900 dark:text-white">
+                        <script>document.write(new Date().toLocaleString('default', { month: 'long', year: 'numeric' }));</script>
+                    </h2>
                     <div class="flex items-center gap-1">
                         <button onclick="changeMonth(-1)" class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-none transition-all text-zinc-500"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
                         <button onclick="changeMonth(1)" class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-none transition-all text-zinc-500"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
@@ -551,12 +691,21 @@
                 <h2 class="text-xl font-bold text-zinc-900 dark:text-white">Project Documentation</h2>
                 <p class="text-xs text-zinc-500">Central knowledge base for {{ project.title }}.</p>
             </div>
-            <a href="{{ url_for('docs.create', project_id=project.id) }}" class="inline-flex items-center gap-2 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-xs font-bold px-4 py-2 rounded-none hover:opacity-90 transition-all">
-                <i data-lucide="plus" class="w-4 h-4"></i> Create Document
-            </a>
+            <div class="flex items-center gap-4">
+                <form action="{{ url_for('projects.attach_file', project_id=project.id) }}" method="POST" enctype="multipart/form-data" class="flex items-center gap-2">
+                    <input type="file" name="file" required class="text-[10px] text-zinc-500 file:mr-2 file:py-1 file:px-2 file:rounded-none file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer w-48">
+                    <button type="submit" class="inline-flex items-center gap-2 bg-zinc-200 dark:bg-supabase-card text-zinc-900 dark:text-white text-xs font-bold px-4 py-2 rounded-none hover:opacity-90 transition-all">
+                        <i data-lucide="upload" class="w-4 h-4"></i> Upload File
+                    </button>
+                </form>
+                <a href="{{ url_for('docs.create', project_id=project.id) }}" class="inline-flex items-center gap-2 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-xs font-bold px-4 py-2 rounded-none hover:opacity-90 transition-all">
+                    <i data-lucide="plus" class="w-4 h-4"></i> Create Document
+                </a>
+            </div>
         </div>
 
-        {% if documents %}
+        {% set project_attachments = project.attachments|selectattr("task_id", "none")|list %}
+        {% if documents or project_attachments %}
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {% for doc in documents %}
             <div class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border p-6 rounded-none shadow-sm hover:shadow-md transition-all group relative">
@@ -581,6 +730,30 @@
                     <span class="text-[10px] text-zinc-400">{{ doc.updated_at.strftime('%b %d, %Y') }}</span>
                 </div>
                 <a href="{{ url_for('docs.edit', doc_id=doc.id) }}" class="absolute inset-0 z-0"></a>
+            </div>
+            {% endfor %}
+
+            {% for attachment in project_attachments %}
+            <div class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border p-6 rounded-none shadow-sm hover:shadow-md transition-all group relative">
+                <div class="flex items-start justify-between mb-4">
+                    <div class="w-10 h-10 bg-emerald-50 dark:bg-emerald-500/10 rounded-none flex items-center justify-center text-emerald-600">
+                        <i data-lucide="paperclip" class="w-5 h-5"></i>
+                    </div>
+                    <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <form action="{{ url_for('projects.delete_attachment', attachment_id=attachment.id) }}" method="POST" onsubmit="return confirm('Delete this attachment?');" class="relative z-10">
+                            <button type="submit" class="p-1.5 text-zinc-400 hover:text-red-500 transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        </form>
+                </div>
+                <h3 class="font-bold text-zinc-900 dark:text-white mb-2 line-clamp-1">{{ attachment.filename }}</h3>
+                <p class="text-xs text-zinc-500 line-clamp-3 mb-4 leading-relaxed">Uploaded File</p>
+                <div class="flex items-center justify-between pt-4 border-t border-zinc-50 dark:border-supabase-border/50">
+                    <div class="flex items-center gap-2">
+                        <div class="w-5 h-5 rounded-full bg-zinc-100 dark:bg-supabase-card flex items-center justify-center text-[8px] font-bold">{{ attachment.uploaded_by.username[0]|upper }}</div>
+                        <span class="text-[10px] text-zinc-400">{{ attachment.uploaded_by.username }}</span>
+                    </div>
+                    <span class="text-[10px] text-zinc-400">{{ attachment.created_at.strftime('%b %d, %Y') }}</span>
+                </div>
+                <a href="{{ url_for('static', filename=attachment.file_path) }}" target="_blank" class="absolute inset-0 z-0"></a>
             </div>
             {% endfor %}
         </div>
@@ -849,7 +1022,7 @@
                 <div class="flex gap-2">
                     <input type="text" name="title" id="task_title" required placeholder="Task title"
                         class="flex-1 px-3 py-2 text-sm font-bold border border-zinc-300 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
-                    <button type="button" onclick="suggestTaskDetails()" class="p-2 bg-zinc-100 dark:bg-supabase-card text-blue-600 rounded-none hover:bg-blue-50 dark:hover:bg-blue-900/30 transition shadow-sm" title="AI Suggest Details">
+                    <button type="button" onclick="suggestTaskDetails(event)" class="p-2 bg-zinc-100 dark:bg-supabase-card text-blue-600 rounded-none hover:bg-blue-50 dark:hover:bg-blue-900/30 transition shadow-sm" title="AI Suggest Details">
                         <i data-lucide="sparkles" class="w-5 h-5"></i>
                     </button>
                 </div>
@@ -1023,6 +1196,12 @@ function showTab(tabId) {
     if (tabId === 'backlog' && typeof initializeBacklog === 'function') initializeBacklog();
     if (tabId === 'tasks' && typeof initializeTaskFilters === 'function') initializeTaskFilters();
     if (tabId === 'analytics' && typeof renderAnalytics === 'function') renderAnalytics();
+
+    // Persist tab
+    localStorage.setItem('project_tab_{{ project.id }}', tabId);
+    const url = new URL(window.location);
+    url.searchParams.set('tab', tabId);
+    window.history.replaceState({}, '', url);
 }
 
 
@@ -1056,25 +1235,8 @@ function closeTaskPanel() {
     document.getElementById('taskPanel').classList.add('translate-x-full');
 }
 
-function updateTaskStatus(taskId, status, selectElement = null) {
-    fetch(`/tasks/${taskId}/update`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ field: 'status', value: status })
-    }).then(r => r.json()).then(data => {
-        if(data.success) {
-            showToast('Task status updated!');
-            if (selectElement) {
-                const row = selectElement.closest('.task-row');
-                if (row) {
-                    row.setAttribute('data-status', status);
-                }
-            }
-        } else {
-            showToast('Failed to update status', 'error');
-        }
-    });
-}
+// NOTE: updateTaskStatus is defined below (near line 1542) with full DOM reactivity.
+// This stub is intentionally removed to avoid duplicate function declarations.
 
 async function createSubtask(taskId, form) {
     const input = form.querySelector('input[name="title"]');
@@ -1103,6 +1265,36 @@ async function createSubtask(taskId, form) {
     }
 }
 
+async function uploadTaskAttachment(event, taskId, form) {
+    event.preventDefault();
+    const btn = form.querySelector('button[type="submit"]');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = 'Uploading...';
+    btn.disabled = true;
+
+    try {
+        const formData = new FormData(form);
+        const response = await fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            redirect: 'follow'
+        });
+        if (response.ok) {
+            showToast('File attached successfully!');
+            openTaskDetails(taskId); // Reload snippet
+        } else {
+            showToast('Failed to attach file.', 'error');
+        }
+    } catch (e) {
+        showToast('Error uploading file.', 'error');
+    } finally {
+        if(btn) {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    }
+}
+
 function updateTaskField(taskId, field, value) {
     fetch(`/tasks/${taskId}/update`, {
         method: 'POST',
@@ -1111,20 +1303,40 @@ function updateTaskField(taskId, field, value) {
     }).then(r => r.json()).then(data => {
         if(data.success) {
             showToast('Task updated successfully!');
+            if (data.warning) {
+                showToast(data.warning, 'warning');
+            }
             
-            // Sync with table row if it exists
-            const rows = document.querySelectorAll(`.task-row[onclick*="openTaskDetails(${taskId})"]`);
-            rows.forEach(row => {
-                if (field === 'status') row.setAttribute('data-status', value);
-                if (field === 'priority') row.setAttribute('data-priority', value);
-                if (field === 'issue_type') row.setAttribute('data-type', value);
-                if (field === 'assignee_id') {
-                    // This is harder since data-assignee expects a username, but we have an ID.
-                    // For now, we might want to reload or just skip for assignee filter sync.
+            // Sync with all views using data-id attribute
+            document.querySelectorAll(`[data-id="${taskId}"]`).forEach(el => {
+                if (field === 'status') {
+                    el.setAttribute('data-status', value);
+                    // Update select dropdowns
+                    el.querySelectorAll('select').forEach(select => {
+                        if (select.querySelector('option[value="To Do"]')) {
+                            select.value = value;
+                        }
+                    });
+                    // Update status badges
+                    el.querySelectorAll('span').forEach(badge => {
+                        const text = badge.textContent.trim();
+                        if (['To Do', 'In Progress', 'Done'].includes(text)) {
+                            badge.textContent = value;
+                        }
+                    });
                 }
+                if (field === 'priority') el.setAttribute('data-priority', value);
+                if (field === 'issue_type') el.setAttribute('data-type', value);
+                if (field === 'assignee_id') el.setAttribute('data-assignee', value || 'unassigned');
             });
+            
+            // If status was updated, also update projectTasks for analytics
+            if (field === 'status' && typeof projectTasks !== 'undefined') {
+                const task = projectTasks.find(t => t.id == taskId);
+                if (task) task.status = value;
+            }
         } else {
-            showToast('Failed to update task', 'error');
+            showToast(data.message || 'Failed to update task', 'error');
         }
     });
 }
@@ -1251,7 +1463,10 @@ function changeMonth(delta) {
 // Handle application initialization
 document.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
-    const tab = urlParams.get('tab') || 'backlog';
+    let tab = urlParams.get('tab');
+    if (!tab) {
+        tab = localStorage.getItem('project_tab_{{ project.id }}') || 'backlog';
+    }
     
     // Setup global components
     lucide.createIcons();
@@ -1320,17 +1535,21 @@ async function updateTaskSprint(taskId, sprintId) {
     }
 }
 
-async function suggestTaskDetails() {
+async function suggestTaskDetails(event) {
     const title = document.getElementById('task_title').value;
     if (!title) {
         showToast('Please enter a task title first.', 'error');
         return;
     }
 
-    const btn = event.currentTarget;
-    const originalContent = btn.innerHTML;
-    btn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i>';
-    lucide.createIcons();
+    let btn = null;
+    let originalContent = '';
+    if (event && event.currentTarget) {
+        btn = event.currentTarget;
+        originalContent = btn.innerHTML;
+        btn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i>';
+        lucide.createIcons();
+    }
 
     try {
         const response = await fetch('/tasks/ml/suggest', {
@@ -1367,14 +1586,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const taskTitleInput = document.getElementById('task_title');
     if (taskTitleInput) {
         let taskFetchTimeout = null;
-        taskTitleInput.addEventListener('blur', () => {
-            const title = taskTitleInput.value.trim();
-            if (!title) return;
-            const descInput = document.getElementById('task_description');
-            if (descInput && descInput.value.trim()) return;
+            taskTitleInput.addEventListener('blur', () => {
+                const title = taskTitleInput.value.trim();
+                if (!title) return;
+                
+                const descInput = document.getElementById('task_description');
+                const hasQuillText = window.quillTask && window.quillTask.getText().trim() !== '';
+                const hasInputText = descInput && descInput.value.trim() !== '';
+                if (hasQuillText || hasInputText) return;
 
-            clearTimeout(taskFetchTimeout);
-            taskFetchTimeout = setTimeout(async () => {
+                clearTimeout(taskFetchTimeout);
+                taskFetchTimeout = setTimeout(async () => {
                 try {
                     const response = await fetch('/tasks/ml/suggest', {
                         method: 'POST',
@@ -1445,23 +1667,74 @@ async function updateTaskStatus(taskId, status) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ field: 'status', value: status })
         });
-        if (response.ok) {
+        const data = await response.json();
+        if (response.ok && data.success) {
             showToast('Status updated');
             
-            // 1. Update all DOM elements with this task ID
+            // 1. Update ALL DOM elements with this task ID across all views
             document.querySelectorAll(`[data-id="${taskId}"]`).forEach(el => {
                 el.setAttribute('data-status', status);
                 
-                // Update Backlog status badge if present
-                const badge = el.querySelector('.px-2\\.5.py-0\\.5');
-                if (badge && badge.textContent !== status) badge.textContent = status;
+                // Update Backlog status badge text
+                const badges = el.querySelectorAll('span');
+                badges.forEach(badge => {
+                    const text = badge.textContent.trim();
+                    if (['To Do', 'In Progress', 'Done'].includes(text)) {
+                        badge.textContent = status;
+                    }
+                });
                 
-                // Update List view select dropdown if present
-                const select = el.querySelector('select');
-                if (select) select.value = status;
+                // Update all select dropdowns inside this element
+                el.querySelectorAll('select').forEach(select => {
+                    if (select.querySelector('option[value="To Do"]')) {
+                        select.value = status;
+                    }
+                });
             });
             
-            // 2. Update Kanban Column Counts
+            // 2. Update Task List table rows by data-id
+            document.querySelectorAll(`tr.task-row[data-id="${taskId}"] select`).forEach(select => {
+                if (select.querySelector('option[value="To Do"]')) {
+                    select.value = status;
+                }
+            });
+            
+            // 3. Update subtask status display in Kanban cards (inline subtask listing)
+            document.querySelectorAll('.kanban-card').forEach(card => {
+                card.querySelectorAll('div[onclick*="openTaskDetails"]').forEach(stDiv => {
+                    const onclickStr = stDiv.getAttribute('onclick') || '';
+                    if (onclickStr.includes(`openTaskDetails(${taskId})`)) {
+                        const stSpan = stDiv.querySelector('span.truncate');
+                        const stBadge = stDiv.querySelector('span.ml-auto');
+                        if (stSpan) {
+                            if (status === 'Done') {
+                                stSpan.classList.add('line-through', 'opacity-60');
+                            } else {
+                                stSpan.classList.remove('line-through', 'opacity-60');
+                            }
+                        }
+                        if (stBadge) stBadge.textContent = status;
+                    }
+                });
+            });
+            
+            // 4. Update subtask checkboxes in the task detail panel
+            const pnlContent = document.getElementById('pnl-content');
+            if (pnlContent) {
+                pnlContent.querySelectorAll(`input[type="checkbox"][onchange*="updateTaskStatus(${taskId}"]`).forEach(cb => {
+                    cb.checked = (status === 'Done');
+                    const label = cb.closest('div')?.querySelector('span');
+                    if (label) {
+                        if (status === 'Done') {
+                            label.classList.add('line-through', 'opacity-60');
+                        } else {
+                            label.classList.remove('line-through', 'opacity-60');
+                        }
+                    }
+                });
+            }
+            
+            // 5. Update Kanban Column Counts
             ['col-todo', 'col-progress', 'col-done'].forEach(colId => {
                 const col = document.getElementById(colId);
                 if (col && col.parentElement) {
@@ -1473,11 +1746,10 @@ async function updateTaskStatus(taskId, status) {
                 }
             });
             
-            // 3. Update projectTasks array for analytics
+            // 6. Update projectTasks array for analytics
             if (typeof projectTasks !== 'undefined') {
                 const task = projectTasks.find(t => t.id == taskId);
                 if (task) task.status = status;
-                // Re-render analytics if chart is visible
                 const chartCanvas = document.getElementById('chart-status');
                 if (chartCanvas && chartCanvas.offsetParent !== null) {
                     renderAnalytics();
@@ -1485,7 +1757,15 @@ async function updateTaskStatus(taskId, status) {
             }
             
         } else {
-            throw new Error();
+            showToast(data.message || 'Failed to update status', 'error');
+            // Revert the select to its previous value on failure
+            document.querySelectorAll(`[data-id="${taskId}"] select`).forEach(select => {
+                if (select.querySelector('option[value="To Do"]')) {
+                    // Re-fetch the current value from data attribute
+                    const currentEl = select.closest('[data-status]');
+                    if (currentEl) select.value = currentEl.getAttribute('data-status');
+                }
+            });
         }
     } catch (e) {
         showToast('Failed to update status', 'error');
@@ -1593,135 +1873,8 @@ const projectTasks = [
     {% endfor %}
 ];
 
-let charts = {};
-
-function renderAnalytics() {
-    const totalTasks = projectTasks.length;
-    const completedTasks = projectTasks.filter(t => t.status === 'Done').length;
-    const inProgressTasks = projectTasks.filter(t => t.status === 'In Progress').length;
-    const todoTasks = projectTasks.filter(t => t.status === 'To Do').length;
-
-    if (typeof Chart === 'undefined') return;
-
-    const isDark = document.documentElement.classList.contains('dark');
-    const textThemeColor = isDark ? '#a1a1a1' : '#71717a';
-    const gridColor = isDark ? '#2e2e2e' : '#f4f4f5';
-
-    const initChart = (id, config) => {
-        if (charts[id]) {
-            charts[id].destroy();
-        }
-        const canvas = document.getElementById(id);
-        if (canvas) {
-            charts[id] = new Chart(canvas, config);
-        }
-    };
-
-    initChart('chart-status', {
-        type: 'pie',
-        data: {
-            labels: ['To Do', 'In Progress', 'Done'],
-            datasets: [{
-                data: [todoTasks, inProgressTasks, completedTasks],
-                backgroundColor: ['#71717a', '#f59e0b', '#3ecf8e'],
-                borderWidth: isDark ? 2 : 1,
-                borderColor: isDark ? '#1e1e1e' : '#ffffff'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: { color: textThemeColor, font: { family: 'Outfit', size: 11, weight: 'semibold' } }
-                }
-            }
-        }
-    });
-
-    const categoryCounts = {};
-    projectTasks.forEach(t => {
-        const cat = t.issue_type || 'Uncategorized';
-        categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
-    });
-    const catLabels = Object.keys(categoryCounts);
-    const catValues = Object.values(categoryCounts);
-
-    initChart('chart-category', {
-        type: 'bar',
-        data: {
-            labels: catLabels.length > 0 ? catLabels : ['No tasks'],
-            datasets: [{
-                label: 'Task Count',
-                data: catValues.length > 0 ? catValues : [0],
-                backgroundColor: ['#6366f1', '#ec4899', '#14b8a6', '#f43f5e', '#8b5cf6', '#eab308'],
-                borderWidth: 0
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false }
-            },
-            scales: {
-                x: {
-                    grid: { display: false },
-                    ticks: { color: textThemeColor, font: { family: 'Outfit', size: 10, weight: 'semibold' } }
-                },
-                y: {
-                    grid: { color: gridColor },
-                    ticks: { color: textThemeColor, font: { family: 'Outfit', size: 10 }, stepSize: 1 }
-                }
-            }
-        }
-    });
-}
-
-function runAIHealthCheck() {
-    showToast('Running risk assessment engines...');
-    const btn = event.currentTarget;
-    const icon = btn.querySelector('i');
-    if (icon) icon.classList.add('animate-spin');
-    
-    setTimeout(() => {
-        renderAnalytics();
-        if (icon) icon.classList.remove('animate-spin');
-        showToast('AI Risk Assessment completed! Health Score evaluated.', 'success');
-    }, 1200);
-}
-
-// Initial trigger if tab parameter is active
-if (new URLSearchParams(window.location.search).get('tab') === 'analytics') {
-    setTimeout(renderAnalytics, 100);
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    var taskEditor = document.getElementById('task-editor-container');
-    if (taskEditor) {
-        window.quillTask = new Quill('#task-editor-container', {
-            theme: 'snow',
-            modules: {
-                toolbar: [
-                    ['bold', 'italic', 'underline', 'strike'],
-                    ['blockquote', 'code-block'],
-                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                    ['link', 'clean']
-                ]
-            },
-            placeholder: 'Describe the task in detail...'
-        });
-
-        // Add submit listener to the form containing the editor
-        var form = taskEditor.closest('form');
-        if (form) {
-            form.addEventListener('submit', function() {
-                var content = document.querySelector('#task_description');
-                content.value = window.quillTask.root.innerHTML;
-            });
-        }
-    }
-});
+    const currentProjectId = {{ project.id }};
+    const currentUserId = {{ current_user.id }};
 </script>
+<script src="{{ url_for('static', filename='js/project_board.js') }}"></script>
 {% endblock %}

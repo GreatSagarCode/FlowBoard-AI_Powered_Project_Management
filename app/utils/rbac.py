@@ -23,6 +23,12 @@ def requires_project_manager(f):
                 if sprint:
                     project_id = sprint.project_id
                     
+        if not project_id and request.method in ['POST', 'PUT', 'PATCH']:
+            if request.is_json:
+                project_id = request.json.get('project_id')
+            else:
+                project_id = request.form.get('project_id')
+                
         if not project_id:
             return f(*args, **kwargs)
 
@@ -49,7 +55,7 @@ def requires_project_manager(f):
             
         if not is_manager:
             flash('Access denied. You must be a Project Manager or Workspace Admin to perform this action.', 'error')
-            return redirect(request.referrer or url_for('main.index'))
+            return redirect(url_for('main.index'))
             
         return f(*args, **kwargs)
     return decorated_function

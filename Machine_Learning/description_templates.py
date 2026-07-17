@@ -12,16 +12,13 @@ def project_description(category: str, text: str, priority: str, duration_days: 
 
 def task_description(category: str, text: str, priority: str, duration_days: int) -> str:
     return (
-        f"<h4>Objective</h4><p>Implement the {category.lower()} related to: "
-        f"<strong>{text[:80]}...</strong></p>"
-        f"<h4>Requirements</h4><ul><li>Gather detailed specifications.</li>"
-        f"<li>Complete necessary technical or design steps.</li>"
-        f"<li>Perform testing and QA.</li></ul>"
-        f"<h4>Constraints</h4><p>Priority: {priority} | Estimated effort: {duration_days} days</p>"
+        f"Objective:\nImplement the {category.lower()} related to: {text[:80]}...\n\n"
+        f"Requirements:\n- Gather detailed specifications.\n"
+        f"- Complete necessary technical or design steps.\n"
+        f"- Perform testing and QA.\n\n"
+        f"Constraints:\nPriority: {priority} | Estimated effort: {duration_days} days"
     )
 
 
 def fallback_description(kind: str) -> str:
-    if kind == "project":
-        return "Please provide more details."
-    return "<p>Please provide more details.</p>"
+    return "Please provide more details."

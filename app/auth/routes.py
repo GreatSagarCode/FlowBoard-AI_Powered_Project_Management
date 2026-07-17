@@ -36,6 +36,15 @@ def register():
         username = request.form.get('username')
         email = request.form.get('email')
         password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+
+        from email_validator import validate_email, EmailNotValidError
+        try:
+            valid = validate_email(email)
+            email = valid.email
+        except EmailNotValidError as e:
+            flash(str(e), 'error')
+            return render_template('auth/register.html')
 
         # Check uniqueness
         if User.query.filter_by(username=username).first():

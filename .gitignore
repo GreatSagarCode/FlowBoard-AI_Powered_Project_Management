@@ -1,3 +1,13 @@
+# Documentation / analysis artifacts
+report.md
+analysis.md
+
+# Temporary analysis scripts
+scan_sensitive.py
+
+# Uploaded user files
+app/static/uploads/
+
 # Virtual environment
 venv/
 .venv/

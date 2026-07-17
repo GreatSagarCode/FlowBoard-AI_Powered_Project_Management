@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FlowBoard | Premium Project Management</title>
     <meta name="description" content="FlowBoard — AI-powered project management for high-performance teams.">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -25,6 +26,8 @@
     </style>
     <!-- Alpine JS -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Socket.IO -->
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -97,8 +100,9 @@
 </head>
 <body class="bg-zinc-50 text-zinc-900 dark:bg-supabase-bg dark:text-supabase-text min-h-screen flex flex-col md:flex-row transition-colors duration-200">
     {% if current_user.is_authenticated and session.get('active_org_id') %}
-    {% set active_org = namespace(val=None) %}
-    {% for membership in current_user.memberships %}{% if membership.organization_id == session.get('active_org_id') %}{% set active_org.val = membership.organization %}{% endif %}{% endfor %}
+    {% set active_membership = current_user.memberships | selectattr('organization_id', 'equalto', session.get('active_org_id')) | first %}
+    {% set active_org = active_membership.organization if active_membership else None %}
+    {% if active_org %}
 
     <!-- Sidebar -->
     <aside id="sidebar" class="w-full md:w-64 border-r border-zinc-200 dark:border-supabase-border bg-white dark:bg-supabase-bg flex-shrink-0 flex flex-col h-auto md:h-screen sticky top-0 z-40 transition-all overflow-hidden">
@@ -109,14 +113,14 @@
                 <button onclick="document.getElementById('org-dropdown').classList.toggle('hidden')" class="w-full flex items-center justify-between p-2 rounded-none hover:bg-zinc-50 dark:hover:bg-supabase-card transition-all">
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 rounded-none bg-red-600 flex-shrink-0 flex items-center justify-center text-white font-black text-lg overflow-hidden">
-                            {% if active_org.val.logo_path %}
-                                <img src="{{ url_for('static', filename=active_org.val.logo_path) }}" class="w-full h-full object-cover">
+                            {% if active_org.logo_path %}
+                                <img src="{{ url_for('static', filename=active_org.logo_path) }}" alt="{{ active_org.name }} logo" class="w-full h-full object-cover">
                             {% else %}
-                                {{ active_org.val.name[0]|upper }}
+                                {{ active_org.name[0]|upper }}
                             {% endif %}
                         </div>
                         <div class="text-left">
-                            <div class="text-sm font-bold text-zinc-900 dark:text-white truncate max-w-[120px]">{{ active_org.val.name }}</div>
+                            <div class="text-sm font-bold text-zinc-900 dark:text-white truncate max-w-[120px]">{{ active_org.name }}</div>
                             <div class="text-[10px] text-zinc-400">{{ current_user.memberships.count() }} workspaces</div>
                         </div>
                     </div>
@@ -133,7 +137,7 @@
                         <div class="flex items-center gap-3">
                             <div class="w-8 h-8 rounded-none bg-red-600 flex-shrink-0 flex items-center justify-center text-white font-black text-xs overflow-hidden">
                                 {% if membership.organization.logo_path %}
-                                    <img src="{{ url_for('static', filename=membership.organization.logo_path) }}" class="w-full h-full object-cover">
+                                    <img src="{{ url_for('static', filename=membership.organization.logo_path) }}" alt="{{ membership.organization.name }} logo" class="w-full h-full object-cover">
                                 {% else %}
                                     {{ membership.organization.name[0]|upper }}
                                 {% endif %}
@@ -143,7 +147,7 @@
                                 <div class="text-[9px] text-zinc-400">{{ membership.organization.memberships.count() }} members</div>
                             </div>
                         </div>
-                        {% if membership.organization_id == active_org.val.id %}
+                        {% if membership.organization_id == active_org.id %}
                             <i data-lucide="check" class="w-3.5 h-3.5 text-blue-500"></i>
                         {% endif %}
                     </a>
@@ -210,7 +214,7 @@
                     <i id="projects-chevron" data-lucide="chevron-down" class="w-4 h-4 text-zinc-400 transition-transform"></i>
                 </button>
                 <div id="projects-list" class="space-y-1 mt-1">
-                    {% for p in active_org.val.projects %}
+                    {% for p in active_org.projects %}
                     <div class="space-y-0.5">
                         <div class="flex items-center justify-between px-3 py-2 rounded-none text-sm font-medium transition-all group hover:bg-zinc-50 dark:hover:bg-zinc-900/50 cursor-pointer" 
                              onclick="toggleProjectSubitems('proj-sub-{{ p.id }}', 'proj-chevron-{{ p.id }}')">
@@ -248,20 +252,25 @@
 
         <!-- User Footer -->
         <div class="p-4 border-t border-zinc-100 dark:border-supabase-border flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <div class="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex-shrink-0 flex items-center justify-center text-white font-bold text-sm shadow-lg">
-                    {{ current_user.username[0]|upper }}
+            <a href="{{ url_for('main.profile') }}" class="flex items-center gap-3 group">
+                <div class="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex-shrink-0 flex items-center justify-center text-white font-bold text-sm shadow-lg overflow-hidden">
+                    {% if current_user.avatar_path %}
+                        <img src="{{ url_for('static', filename=current_user.avatar_path) }}" alt="Avatar" class="w-full h-full object-cover">
+                    {% else %}
+                        {{ current_user.username[0]|upper }}
+                    {% endif %}
                 </div>
                 <div class="hidden md:block truncate">
-                    <div class="text-xs font-bold text-zinc-900 dark:text-white truncate">{{ current_user.username }}</div>
+                    <div class="text-xs font-bold text-zinc-900 dark:text-white truncate group-hover:text-blue-600 transition">{{ current_user.username }}</div>
                     <div class="text-[9px] text-zinc-500 truncate">{{ current_user.email }}</div>
                 </div>
-            </div>
+            </a>
             <a href="{{ url_for('auth.logout') }}" class="text-zinc-400 hover:text-red-500 transition p-1.5 rounded-none hover:bg-red-50 dark:hover:bg-red-500/10" title="Logout">
                 <i data-lucide="log-out" class="w-4 h-4"></i>
             </a>
         </div>
     </aside>
+    {% endif %}
     {% endif %}
 
     <!-- Main Content -->
@@ -327,9 +336,13 @@
                 </button>
                 <div class="w-px h-6 bg-zinc-200 dark:bg-supabase-card mx-1"></div>
                 {% if current_user.is_authenticated %}
-                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-sm border border-white dark:border-supabase-border cursor-pointer" title="{{ current_user.username }}">
-                    {{ current_user.username[0]|upper }}
-                </div>
+                <a href="{{ url_for('main.profile') }}" class="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-sm border border-white dark:border-supabase-border cursor-pointer hover:ring-2 hover:ring-blue-500/30 transition-all overflow-hidden" title="{{ current_user.username }}">
+                    {% if current_user.avatar_path %}
+                        <img src="{{ url_for('static', filename=current_user.avatar_path) }}" alt="Avatar" class="w-full h-full object-cover">
+                    {% else %}
+                        {{ current_user.username[0]|upper }}
+                    {% endif %}
+                </a>
                 {% endif %}
             </div>
         </header>
@@ -468,8 +481,55 @@
             openModal('custom-confirm-modal');
         }
 
-        // Global Search Handler
+        // Global Search & CSRF Handler
         document.addEventListener('DOMContentLoaded', () => {
+            // CSRF Token auto-injector
+            const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            if (csrfMeta) {
+                const csrfToken = csrfMeta.getAttribute('content');
+                
+                // Inject into existing and future forms
+                const injectCsrfForms = () => {
+                    document.querySelectorAll('form[method="POST"], form[method="post"]').forEach(form => {
+                        if (!form.querySelector('input[name="csrf_token"]')) {
+                            const input = document.createElement('input');
+                            input.type = 'hidden';
+                            input.name = 'csrf_token';
+                            input.value = csrfToken;
+                            form.appendChild(input);
+                        }
+                    });
+                };
+                
+                injectCsrfForms();
+                
+                // Watch for dynamically added forms
+                const observer = new MutationObserver(injectCsrfForms);
+                observer.observe(document.body, { childList: true, subtree: true });
+
+                // Intercept window.fetch to attach CSRF headers
+                const originalFetch = window.fetch;
+                window.fetch = async function(...args) {
+                    let [resource, config] = args;
+                    if (!config) config = {};
+                    if (!config.headers) config.headers = {};
+                    
+                    const method = (config.method || 'GET').toUpperCase();
+                    if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+                        if (config.headers instanceof Headers) {
+                            if (!config.headers.has('X-CSRFToken')) {
+                                config.headers.set('X-CSRFToken', csrfToken);
+                            }
+                        } else {
+                            if (!config.headers['X-CSRFToken']) {
+                                config.headers['X-CSRFToken'] = csrfToken;
+                            }
+                        }
+                    }
+                    return originalFetch(resource, config);
+                };
+            }
+
             const searchInput = document.getElementById('global-search');
             if (searchInput) {
                 // If on search page, populate the input
@@ -485,6 +545,25 @@
                         if (query) {
                             window.location.href = `/search?q=${encodeURIComponent(query)}`;
                         }
+                    }
+                });
+            }
+            
+            // Global WebSocket for Real-time Notifications
+            if (typeof io !== 'undefined') {
+                window.socket = io();
+                window.socket.on('connect', () => {
+                    window.socket.emit('join_global', {});
+                });
+                
+                window.socket.on('new_notification', (data) => {
+                    // Show a toast notification
+                    showToast(data.title + ': ' + data.message, data.type === 'error' ? 'error' : 'success');
+                    
+                    // Update notification bell badge if it doesn't exist
+                    const bellBtn = document.querySelector('button[title="Notifications"]');
+                    if (bellBtn && !bellBtn.querySelector('.bg-blue-600.ring-2')) {
+                        bellBtn.innerHTML += '<span class="absolute top-2.5 right-2.5 w-2 h-2 bg-blue-600 rounded-none ring-2 ring-white dark:ring-supabase-bg"></span>';
                     }
                 });
             }

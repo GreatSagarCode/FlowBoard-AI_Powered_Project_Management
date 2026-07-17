@@ -1,27 +1,30 @@
 from flask import render_template, redirect, url_for, request, flash, session
 from flask_login import login_required, current_user
 from app.projects import bp
-from app.models import Project, Sprint, Task, Document, Organization, Membership
+from app.models import Project, Sprint, Task, Document, Organization, Membership, User
 from app.extensions import db
 from datetime import datetime
 from app.utils.notifications import create_notification
+from app.utils.rbac import requires_project_manager
 
 @bp.route('/')
 @login_required
 def list_projects():
     active_org_id = session.get('active_org_id')
-    projects = Project.query.filter_by(organization_id=active_org_id).all()
+    page = request.args.get('page', 1, type=int)
+    projects_pagination = Project.query.filter_by(organization_id=active_org_id).order_by(Project.created_at.desc()).paginate(page=page, per_page=12, error_out=False)
+    projects = projects_pagination.items
     org_members = [m.user for m in Membership.query.filter_by(organization_id=active_org_id).all()]
     org = Organization.query.get(active_org_id)
     membership = Membership.query.filter_by(user_id=current_user.id, organization_id=active_org_id).first()
     is_admin = membership and membership.role == 'ADMIN'
-    return render_template('projects/list.html', projects=projects, org_members=org_members, org=org, is_admin=is_admin)
+    return render_template('projects/list.html', projects=projects, pagination=projects_pagination, org_members=org_members, org=org, is_admin=is_admin)
 
 @bp.route('/create', methods=['POST'])
 @login_required
 def create_project():
-    title = request.form.get('title', '').strip()
-    description = request.form.get('description', '').strip()
+    title = request.form.get('title', '').strip()[:100]
+    description = request.form.get('description', '').strip()[:2000]
     active_org_id = session.get('active_org_id')
     status = request.form.get('status', '').strip()
     priority = request.form.get('priority', '').strip()
@@ -32,7 +35,7 @@ def create_project():
 
     if not (title and description and status and priority and start_date_raw and end_date_raw and lead_id and member_ids):
         flash('All fields are required to create a project, including at least one team member.', 'error')
-        return redirect(request.referrer or url_for('projects.list_projects'))
+        return redirect(url_for('projects.list_projects'))
 
     from datetime import datetime, timedelta
     lead_id = int(lead_id)
@@ -66,8 +69,7 @@ def create_project():
 
     # Add additional selected members
     for mid in member_ids:
-        from app.models import User as U
-        u = U.query.get(int(mid))
+        u = User.query.get(int(mid))
         if u and u not in project.members:
             project.members.append(u)
             if u.id != current_user.id:
@@ -81,7 +83,7 @@ def create_project():
 
     db.session.commit()
     flash('Project created successfully', 'success')
-    return redirect(request.referrer or url_for('projects.list_projects'))
+    return redirect(url_for('projects.list_projects'))
 
 
 @bp.route('/<int:project_id>')
@@ -101,6 +103,9 @@ def project_details(project_id):
     backlog_tasks = project.tasks.filter_by(sprint_id=None, parent_id=None).all()
     documents = project.documents.order_by(Document.updated_at.desc()).all()
     
+    task_page = request.args.get('task_page', 1, type=int)
+    tasks_pagination = project.tasks.filter_by(parent_id=None).order_by(Task.created_at.desc()).paginate(page=task_page, per_page=20, error_out=False)
+    
     # Get all organization users for assignee dropdown
     org_members = [m.user for m in Membership.query.filter_by(organization_id=active_org_id).all()]
     
@@ -112,6 +117,7 @@ def project_details(project_id):
                            sprints=sprints, 
                            backlog_tasks=backlog_tasks, 
                            active_sprint=active_sprint, 
+                           tasks_pagination=tasks_pagination,
                            documents=documents,
                            org_members=org_members,
                            datetime=datetime,
@@ -219,7 +225,6 @@ def add_member(project_id):
     project = Project.query.get_or_404(project_id)
     user_id = request.form.get('user_id')
     if user_id:
-        from app.models import User
         user = User.query.get(int(user_id))
         if user and user not in project.members:
             project.members.append(user)
@@ -311,6 +316,7 @@ def delete_sprint(sprint_id):
 
 @bp.route('/<int:project_id>/edit', methods=['POST'])
 @login_required
+@requires_project_manager
 def edit_project(project_id):
     active_org_id = session.get('active_org_id')
     project = Project.query.get_or_404(project_id)
@@ -320,8 +326,8 @@ def edit_project(project_id):
         flash('Access denied.', 'error')
         return redirect(url_for('main.index'))
         
-    title = request.form.get('title', '').strip()
-    description = request.form.get('description', '').strip()
+    title = request.form.get('title', '').strip()[:100]
+    description = request.form.get('description', '').strip()[:2000]
     status = request.form.get('status', '').strip()
     priority = request.form.get('priority', '').strip()
     start_date_raw = request.form.get('start_date', '').strip()
@@ -341,6 +347,10 @@ def edit_project(project_id):
     except ValueError:
         end_date = project.end_date
         
+    if end_date and start_date and end_date < start_date:
+        flash('End date cannot be earlier than start date.', 'error')
+        return redirect(url_for('projects.project_details', project_id=project.id, tab='settings'))
+        
     project.title = title
     project.description = description
     project.status = status
@@ -351,3 +361,81 @@ def edit_project(project_id):
     db.session.commit()
     flash('Project details updated successfully.', 'success')
     return redirect(url_for('projects.project_details', project_id=project.id, tab='settings'))
+
+@bp.route('/<int:project_id>/attach', methods=['POST'])
+@login_required
+def attach_file(project_id):
+    from flask import current_app, session
+    from werkzeug.utils import secure_filename
+    from app.models import Attachment
+    import os
+
+    project = Project.query.get_or_404(project_id)
+    active_org_id = session.get('active_org_id')
+    if project.organization_id != active_org_id:
+        flash('Access denied.', 'error')
+        return redirect(url_for('main.index'))
+
+    file = request.files.get('file')
+
+    if file and file.filename:
+        ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf', 'doc', 'docx', 'csv', 'txt', 'zip', 'xls', 'xlsx'}
+        MAX_FILE_SIZE_MB = 10
+        ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+        if ext not in ALLOWED_EXTENSIONS:
+            flash(f'File type not allowed: {ext}', 'error')
+            return redirect(url_for('projects.project_details', project_id=project.id) + '?tab=docs')
+
+        file_data = file.read()
+        if len(file_data) > MAX_FILE_SIZE_MB * 1024 * 1024:
+            flash(f'File too large. Maximum size is {MAX_FILE_SIZE_MB}MB.', 'error')
+            return redirect(url_for('projects.project_details', project_id=project.id) + '?tab=docs')
+        file.seek(0)
+
+        filename = secure_filename(file.filename)
+        upload_path = os.path.join(current_app.root_path, 'static', 'uploads', 'attachments')
+        if not os.path.exists(upload_path):
+            os.makedirs(upload_path)
+
+        file.save(os.path.join(upload_path, filename))
+
+        attachment = Attachment(
+            filename=file.filename,
+            file_path=f"uploads/attachments/{filename}",
+            project_id=project.id,
+            uploaded_by_id=current_user.id
+        )
+        db.session.add(attachment)
+        db.session.commit()
+        flash('Document uploaded successfully', 'success')
+
+    return redirect(url_for('projects.project_details', project_id=project.id) + '?tab=docs')
+
+@bp.route('/attachment/<int:attachment_id>/delete', methods=['POST'])
+@login_required
+def delete_attachment(attachment_id):
+    from flask import current_app, session
+    from app.models import Attachment
+    import os
+
+    attachment = Attachment.query.get_or_404(attachment_id)
+    project_id = attachment.project_id
+    project = Project.query.get_or_404(project_id)
+    
+    active_org_id = session.get('active_org_id')
+    if project.organization_id != active_org_id:
+        flash('Access denied.', 'error')
+        return redirect(url_for('main.index'))
+        
+    try:
+        file_path = os.path.join(current_app.root_path, 'static', attachment.file_path)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+    except Exception as e:
+        print(f"Error deleting file: {e}")
+        
+    db.session.delete(attachment)
+    db.session.commit()
+    flash('Attachment deleted successfully', 'success')
+    
+    return redirect(url_for('projects.project_details', project_id=project_id) + '?tab=docs')

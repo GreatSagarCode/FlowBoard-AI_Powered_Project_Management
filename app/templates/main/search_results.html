@@ -5,17 +5,118 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-5xl mx-auto space-y-8">
-    <div class="mb-8">
-        <h1 class="text-3xl font-extrabold text-zinc-900 dark:text-white tracking-tight">Search Results for "{{ query }}"</h1>
-        <p class="text-sm text-zinc-500 mt-2">Found {{ projects|length }} projects and {{ tasks|length }} tasks.</p>
+<div class="max-w-6xl mx-auto space-y-8">
+    <div class="mb-2">
+        <h1 class="text-3xl font-extrabold text-zinc-900 dark:text-white tracking-tight">
+            {% if query %}Search Results for "{{ query }}"{% else %}Search & Filter{% endif %}
+        </h1>
+        <p class="text-sm text-zinc-500 mt-2">Found {{ projects|length }} project{{ 's' if projects|length != 1 else '' }} and {{ tasks|length }} task{{ 's' if tasks|length != 1 else '' }}.</p>
+    </div>
+
+    <!-- Filter Panel -->
+    <div class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none shadow-sm">
+        <button onclick="toggleFilterPanel()" class="w-full flex items-center justify-between px-6 py-4 hover:bg-zinc-50 dark:hover:bg-supabase-card/50 transition">
+            <div class="flex items-center gap-2 text-sm font-bold text-zinc-900 dark:text-white">
+                <i data-lucide="sliders-horizontal" class="w-4 h-4 text-blue-500"></i>
+                Filters
+                {% set active_filter_count = (1 if status_filter else 0) + (1 if priority_filter else 0) + (1 if assignee_filter else 0) + (1 if date_from else 0) + (1 if date_to else 0) %}
+                {% if active_filter_count > 0 %}
+                <span class="bg-blue-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-none">{{ active_filter_count }}</span>
+                {% endif %}
+            </div>
+            <i id="filter-chevron" data-lucide="chevron-down" class="w-4 h-4 text-zinc-400 transition-transform {% if active_filter_count > 0 %}rotate-180{% endif %}"></i>
+        </button>
+
+        <form id="filter-panel" action="{{ url_for('main.search') }}" method="GET" class="{% if active_filter_count == 0 %}hidden{% endif %} px-6 pb-6 pt-2 border-t border-zinc-100 dark:border-supabase-border space-y-4">
+            <!-- Search query (hidden to preserve) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                <!-- Search Term -->
+                <div class="space-y-1.5">
+                    <label class="block text-[10px] font-black text-zinc-400 uppercase tracking-widest">Keyword</label>
+                    <div class="relative">
+                        <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400"></i>
+                        <input type="text" name="q" value="{{ query }}" placeholder="Search..."
+                            class="w-full pl-9 pr-3 py-2 text-xs font-bold bg-zinc-50 dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition text-zinc-900 dark:text-white placeholder-zinc-400">
+                    </div>
+                </div>
+
+                <!-- Status -->
+                <div class="space-y-1.5">
+                    <label class="block text-[10px] font-black text-zinc-400 uppercase tracking-widest">Status</label>
+                    <select name="status" class="w-full px-3 py-2 text-xs font-bold bg-zinc-50 dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition text-zinc-900 dark:text-white appearance-none cursor-pointer">
+                        <option value="">All Statuses</option>
+                        <optgroup label="Tasks">
+                            <option value="To Do" {% if status_filter == 'To Do' %}selected{% endif %}>To Do</option>
+                            <option value="In Progress" {% if status_filter == 'In Progress' %}selected{% endif %}>In Progress</option>
+                            <option value="Done" {% if status_filter == 'Done' %}selected{% endif %}>Done</option>
+                        </optgroup>
+                        <optgroup label="Projects">
+                            <option value="PLANNING" {% if status_filter == 'PLANNING' %}selected{% endif %}>Planning</option>
+                            <option value="ACTIVE" {% if status_filter == 'ACTIVE' %}selected{% endif %}>Active</option>
+                            <option value="ON_HOLD" {% if status_filter == 'ON_HOLD' %}selected{% endif %}>On Hold</option>
+                            <option value="COMPLETED" {% if status_filter == 'COMPLETED' %}selected{% endif %}>Completed</option>
+                        </optgroup>
+                    </select>
+                </div>
+
+                <!-- Priority -->
+                <div class="space-y-1.5">
+                    <label class="block text-[10px] font-black text-zinc-400 uppercase tracking-widest">Priority</label>
+                    <select name="priority" class="w-full px-3 py-2 text-xs font-bold bg-zinc-50 dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition text-zinc-900 dark:text-white appearance-none cursor-pointer">
+                        <option value="">All Priorities</option>
+                        <option value="Low" {% if priority_filter == 'Low' %}selected{% endif %}>Low</option>
+                        <option value="Medium" {% if priority_filter == 'Medium' %}selected{% endif %}>Medium</option>
+                        <option value="High" {% if priority_filter == 'High' %}selected{% endif %}>High</option>
+                        <option value="Highest" {% if priority_filter == 'Highest' %}selected{% endif %}>Highest</option>
+                        <option value="LOW" {% if priority_filter == 'LOW' %}selected{% endif %}>LOW (Project)</option>
+                        <option value="MEDIUM" {% if priority_filter == 'MEDIUM' %}selected{% endif %}>MEDIUM (Project)</option>
+                        <option value="HIGH" {% if priority_filter == 'HIGH' %}selected{% endif %}>HIGH (Project)</option>
+                        <option value="CRITICAL" {% if priority_filter == 'CRITICAL' %}selected{% endif %}>CRITICAL (Project)</option>
+                    </select>
+                </div>
+
+                <!-- Assignee -->
+                <div class="space-y-1.5">
+                    <label class="block text-[10px] font-black text-zinc-400 uppercase tracking-widest">Assignee</label>
+                    <select name="assignee" class="w-full px-3 py-2 text-xs font-bold bg-zinc-50 dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition text-zinc-900 dark:text-white appearance-none cursor-pointer">
+                        <option value="">All Assignees</option>
+                        {% for user in org_members %}
+                        <option value="{{ user.id }}" {% if assignee_filter == user.id|string %}selected{% endif %}>{{ user.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Date From -->
+                <div class="space-y-1.5">
+                    <label class="block text-[10px] font-black text-zinc-400 uppercase tracking-widest">Due From</label>
+                    <input type="date" name="date_from" value="{{ date_from }}"
+                        class="w-full px-3 py-2 text-xs font-bold bg-zinc-50 dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition text-zinc-900 dark:text-white">
+                </div>
+
+                <!-- Date To -->
+                <div class="space-y-1.5">
+                    <label class="block text-[10px] font-black text-zinc-400 uppercase tracking-widest">Due To</label>
+                    <input type="date" name="date_to" value="{{ date_to }}"
+                        class="w-full px-3 py-2 text-xs font-bold bg-zinc-50 dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition text-zinc-900 dark:text-white">
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3 pt-2">
+                <button type="submit" class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-5 py-2 rounded-none transition shadow-sm">
+                    <i data-lucide="search" class="w-3.5 h-3.5"></i> Apply Filters
+                </button>
+                <a href="{{ url_for('main.search') }}" class="inline-flex items-center gap-2 text-xs font-bold text-zinc-500 dark:text-supabase-muted hover:text-zinc-700 dark:hover:text-zinc-300 px-4 py-2 border border-zinc-200 dark:border-supabase-border rounded-none hover:bg-zinc-50 dark:hover:bg-supabase-card transition">
+                    <i data-lucide="x" class="w-3.5 h-3.5"></i> Clear All
+                </a>
+            </div>
+        </form>
     </div>
 
     {% if not projects and not tasks %}
     <div class="flex flex-col items-center justify-center py-20 bg-zinc-50 dark:bg-supabase-card/30 border-2 border-dashed border-zinc-200 dark:border-supabase-border rounded-none">
         <i data-lucide="search-x" class="w-12 h-12 text-zinc-300 dark:text-zinc-600 mb-4"></i>
         <h3 class="text-lg font-bold text-zinc-900 dark:text-white">No results found</h3>
-        <p class="text-sm text-zinc-500">We couldn't find anything matching "{{ query }}".</p>
+        <p class="text-sm text-zinc-500 mt-1">{% if query %}We couldn't find anything matching "{{ query }}"{% else %}Try searching for projects or tasks, or use the filters above{% endif %}.</p>
     </div>
     {% endif %}
 
@@ -23,15 +124,35 @@
     <div class="space-y-4">
         <h2 class="text-lg font-bold text-zinc-900 dark:text-white border-b border-zinc-200 dark:border-supabase-border pb-2 flex items-center gap-2">
             <i data-lucide="folder" class="w-5 h-5 text-blue-500"></i> Projects
+            <span class="text-xs font-bold text-zinc-400 ml-1">({{ projects|length }})</span>
         </h2>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             {% for project in projects %}
-            <a href="{{ url_for('projects.project_details', project_id=project.id) }}" class="block p-4 bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border hover:border-blue-500/50 hover:shadow-md transition-all group rounded-none">
-                <h3 class="font-bold text-zinc-900 dark:text-white group-hover:text-blue-600 transition">{{ project.title }}</h3>
-                <p class="text-xs text-zinc-500 line-clamp-2 mt-1">{{ project.description or 'No description provided.' }}</p>
-                <div class="mt-4 flex items-center justify-between text-[10px] uppercase font-bold text-zinc-400">
-                    <span>{{ project.status }}</span>
-                    <span>{{ project.tasks.count() }} tasks</span>
+            <a href="{{ url_for('projects.project_details', project_id=project.id) }}" class="block p-5 bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border hover:border-blue-500/50 hover:shadow-md transition-all group rounded-none">
+                <div class="flex items-start justify-between mb-3">
+                    <h3 class="font-bold text-zinc-900 dark:text-white group-hover:text-blue-600 transition">{{ project.title }}</h3>
+                    <span class="px-2 py-0.5 text-[9px] font-black uppercase tracking-widest rounded-none
+                        {% if project.status == 'ACTIVE' %}bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400
+                        {% elif project.status == 'COMPLETED' %}bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400
+                        {% elif project.status == 'ON_HOLD' %}bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400
+                        {% else %}bg-zinc-100 dark:bg-supabase-bg text-zinc-500{% endif %}">{{ project.status }}</span>
+                </div>
+                <p class="text-xs text-zinc-500 line-clamp-2">{{ project.description or 'No description provided.' }}</p>
+                <div class="mt-4 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <span class="flex items-center gap-1 text-[10px] font-bold text-zinc-400">
+                            <i data-lucide="flag" class="w-3 h-3"></i> {{ project.priority }}
+                        </span>
+                        <span class="flex items-center gap-1 text-[10px] font-bold text-zinc-400">
+                            <i data-lucide="check-square" class="w-3 h-3"></i> {{ project.tasks.count() }} tasks
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <div class="w-24 h-1.5 bg-zinc-100 dark:bg-supabase-bg rounded-none overflow-hidden">
+                            <div class="h-full bg-blue-500 rounded-none transition-all" style="width: {{ project.progress }}%"></div>
+                        </div>
+                        <span class="text-[9px] font-bold text-zinc-400">{{ project.progress }}%</span>
+                    </div>
                 </div>
             </a>
             {% endfor %}
@@ -40,25 +161,39 @@
     {% endif %}
 
     {% if tasks %}
-    <div class="space-y-4 pt-6">
+    <div class="space-y-4 pt-2">
         <h2 class="text-lg font-bold text-zinc-900 dark:text-white border-b border-zinc-200 dark:border-supabase-border pb-2 flex items-center gap-2">
             <i data-lucide="check-square" class="w-5 h-5 text-emerald-500"></i> Tasks
+            <span class="text-xs font-bold text-zinc-400 ml-1">({{ tasks|length }})</span>
         </h2>
         <div class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none divide-y divide-zinc-100 dark:divide-supabase-border/50">
             {% for task in tasks %}
             <a href="{{ url_for('projects.project_details', project_id=task.project_id) }}?task_id={{ task.id }}" class="flex items-center justify-between p-4 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition group">
-                <div class="flex items-center gap-4 flex-1">
-                    <i data-lucide="{{ {'Bug': 'bug', 'Feature': 'zap', 'Improvement': 'git-pull-request', 'Task': 'check-square'}.get(task.issue_type, 'check-square') }}" class="w-4 h-4 {{ {'Bug': 'text-rose-500', 'Feature': 'text-blue-500', 'Improvement': 'text-purple-500', 'Task': 'text-emerald-500'}.get(task.issue_type, 'text-zinc-400') }}"></i>
-                    <div>
-                        <div class="flex items-center gap-2">
-                            <span class="text-[10px] font-black text-zinc-400 uppercase tracking-widest">PROJ-{{ task.id }}</span>
+                <div class="flex items-center gap-4 flex-1 min-w-0">
+                    <i data-lucide="{{ {'Bug': 'bug', 'Feature': 'zap', 'Improvement': 'git-pull-request', 'Task': 'check-square'}.get(task.issue_type, 'check-square') }}" class="w-4 h-4 flex-shrink-0 {{ {'Bug': 'text-rose-500', 'Feature': 'text-blue-500', 'Improvement': 'text-purple-500', 'Task': 'text-emerald-500'}.get(task.issue_type, 'text-zinc-400') }}"></i>
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="text-[10px] font-black text-zinc-400 uppercase tracking-widest">TASK-{{ task.id }}</span>
                             <span class="text-xs font-bold text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5">{{ task.project.title }}</span>
                         </div>
-                        <h4 class="text-sm font-bold text-zinc-900 dark:text-white group-hover:text-blue-600 transition tracking-tight mt-1">{{ task.title }}</h4>
+                        <h4 class="text-sm font-bold text-zinc-900 dark:text-white group-hover:text-blue-600 transition tracking-tight mt-1 truncate">{{ task.title }}</h4>
                     </div>
                 </div>
-                <div class="flex items-center gap-4">
+                <div class="flex items-center gap-3 flex-shrink-0 ml-4">
+                    <!-- Priority badge -->
+                    <span class="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-none
+                        {% if task.priority in ['High', 'Highest'] %}bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400
+                        {% elif task.priority == 'Medium' %}bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400
+                        {% else %}bg-zinc-100 dark:bg-supabase-bg text-zinc-500{% endif %}">{{ task.priority }}</span>
+                    <!-- Status badge -->
                     <span class="px-2 py-0.5 bg-zinc-100 dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border text-[10px] font-bold text-zinc-600 dark:text-supabase-text uppercase">{{ task.status }}</span>
+                    <!-- Due date -->
+                    {% if task.due_date %}
+                    <span class="text-[10px] font-bold {{ 'text-rose-500' if task.is_overdue else 'text-zinc-400' }} flex items-center gap-1">
+                        <i data-lucide="calendar" class="w-3 h-3"></i> {{ task.due_date.strftime('%b %d') }}
+                    </span>
+                    {% endif %}
+                    <!-- Assignee -->
                     {% if task.assignee %}
                     <div class="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-bold" title="{{ task.assignee.username }}">
                         {{ task.assignee.username[0]|upper }}
@@ -73,4 +208,13 @@
     </div>
     {% endif %}
 </div>
+
+<script>
+    function toggleFilterPanel() {
+        const panel = document.getElementById('filter-panel');
+        const chevron = document.getElementById('filter-chevron');
+        panel.classList.toggle('hidden');
+        chevron.classList.toggle('rotate-180');
+    }
+</script>
 {% endblock %}
