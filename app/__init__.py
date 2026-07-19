@@ -16,15 +16,16 @@ def setup_logging(app):
         app.logger.addHandler(file_handler)
 
 def _run_migrations(app):
-    with app.app_context():
-        from sqlalchemy import inspect, text
-        engine = db.engine
-        inspector = inspect(engine)
-        for table, col in [('notification', 'organization_id'), ('activity_log', 'organization_id')]:
-            if col not in {c['name'] for c in inspector.get_columns(table)}:
-                db.session.execute(text(f'ALTER TABLE {table} ADD COLUMN {col} INTEGER REFERENCES organization(id)'))
-                app.logger.info(f'Migration: added {col} to {table}')
-        db.session.commit()
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    for table_name, table in db.metadata.tables.items():
+        existing = {c['name'] for c in inspector.get_columns(table_name)}
+        for col in table.columns:
+            if col.name not in existing:
+                col_type = col.type.compile(db.engine.dialect)
+                db.session.execute(text(f'ALTER TABLE {table_name} ADD COLUMN {col.name} {col_type}'))
+                app.logger.info(f'Migration: added {col.name} to {table_name}')
+    db.session.commit()
 
 def create_app(config_class=Config):
     app = Flask(__name__)
