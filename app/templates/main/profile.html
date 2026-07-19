@@ -22,6 +22,7 @@
                         <i data-lucide="camera" class="w-3.5 h-3.5"></i>
                     </span>
                 </label>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="form_type" value="avatar">
                 <input type="file" id="avatar-upload" name="avatar" accept="image/*" class="hidden" onchange="document.getElementById('avatar-form').submit();">
             </form>
@@ -55,6 +56,7 @@
                 </h2>
             </div>
             <form action="{{ url_for('main.profile') }}" method="POST" class="p-5 space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="form_type" value="profile">
                 <div class="space-y-1.5">
                     <label class="block text-[11px] font-bold text-zinc-500 dark:text-supabase-muted uppercase tracking-widest">Username</label>
@@ -87,6 +89,7 @@
                 </h2>
             </div>
             <form action="{{ url_for('main.profile') }}" method="POST" class="p-5 space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="form_type" value="password">
                 <div class="space-y-1.5">
                     <label class="block text-[11px] font-bold text-zinc-500 dark:text-supabase-muted uppercase tracking-widest">Current Password</label>
@@ -169,6 +172,7 @@
             <span class="text-[11px] font-bold text-zinc-700 dark:text-supabase-text">Delete Account</span>
         </div>
         <form id="delete-account-form" action="{{ url_for('main.delete_account') }}" method="POST" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="button" onclick="triggerDeleteAccount()" class="p-1.5 text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 hover:bg-rose-600 hover:text-white dark:hover:bg-rose-600 dark:hover:text-white transition-all duration-300 border border-rose-200/50 dark:border-rose-900/30 hover:border-rose-600 rounded-none shadow-sm flex items-center justify-center group cursor-pointer" title="Delete Account">
                 <svg class="w-3.5 h-3.5 transition-transform duration-300 group-hover:rotate-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
