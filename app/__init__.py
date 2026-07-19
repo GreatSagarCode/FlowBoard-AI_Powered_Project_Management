@@ -15,6 +15,17 @@ def setup_logging(app):
         file_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s'))
         app.logger.addHandler(file_handler)
 
+def _run_migrations(app):
+    with app.app_context():
+        from sqlalchemy import inspect, text
+        engine = db.engine
+        inspector = inspect(engine)
+        for table, col in [('notification', 'organization_id'), ('activity_log', 'organization_id')]:
+            if col not in {c['name'] for c in inspector.get_columns(table)}:
+                db.session.execute(text(f'ALTER TABLE {table} ADD COLUMN {col} INTEGER REFERENCES organization(id)'))
+                app.logger.info(f'Migration: added {col} to {table}')
+        db.session.commit()
+
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
@@ -66,6 +77,7 @@ def create_app(config_class=Config):
 
     with app.app_context():
         db.create_all()
+        _run_migrations(app)
 
     # Initialize and start APScheduler
     try:
