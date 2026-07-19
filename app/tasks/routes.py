@@ -1,37 +1,60 @@
-from flask import render_template, redirect, url_for, request, jsonify, flash
+"""Task routes — CRUD, comments, attachments, subtasks, ML suggestions, activity log."""
+from flask import render_template, redirect, url_for, request, jsonify, flash, session
 from flask_login import login_required, current_user
 from app.tasks import bp
-from app.models import Project, Task, Comment, Membership, Attachment
+from app.models import Project, Task, Comment, Membership, Attachment, ActivityLog, User, Sprint
 from app.extensions import db
 from datetime import datetime
 from app.services.ml_service import MLService
 from app.utils.notifications import create_notification
 from app.utils.activity import log_activity
 from app.utils.rbac import requires_project_manager
+from app.utils import get_membership
+
+
+def _verify_org_access(organization_id):
+    active_org_id = session.get('active_org_id')
+    if organization_id != active_org_id:
+        return False
+    return get_membership() is not None
 
 
 @bp.route('/<int:task_id>')
 @login_required
 def get_task(task_id):
-    task = Task.query.get_or_404(task_id)
+    from sqlalchemy.orm import joinedload
+    task = Task.query.options(
+        joinedload(Task.attachments),
+        joinedload(Task.subtasks),
+        joinedload(Task.activity_logs)
+    ).get_or_404(task_id)
     project = task.project
-    from flask import session
     active_org_id = session.get('active_org_id')
     if project.organization_id != active_org_id:
         return "Access denied", 403
-    # Get organization members for assignee dropdown in detail panel
+    if not get_membership():
+        return "Access denied", 403
+    import time
     org_members = [m.user for m in Membership.query.filter_by(organization_id=project.organization_id).all()]
-    return render_template('tasks/task_snippet.html', task=task, org_members=org_members, Comment=Comment)
+    return render_template('tasks/task_snippet.html', task=task, org_members=org_members, Comment=Comment, cache_buster=int(time.time()))
 
 @bp.route('/create', methods=['POST'])
 @login_required
 @requires_project_manager
 def create_task():
     title = request.form.get('title', '').strip()[:150]
-    description = request.form.get('description', '').strip()[:5000]
+    description_raw = request.form.get('description', '').strip()[:5000]
+    import bleach
+    description = bleach.clean(description_raw, tags=['h1', 'h2', 'h3', 'p', 'br', 'strong', 'em', 'u', 's', 'blockquote', 'pre', 'ol', 'ul', 'li', 'a', 'img', 'span'], attributes={'*': ['class', 'style'], 'a': ['href', 'target'], 'img': ['src', 'alt']}, styles=['color', 'background-color']) if description_raw else ''
     project_id = request.form.get('project_id')
     issue_type = request.form.get('issue_type', 'Task')
+    ALLOWED_ISSUE_TYPES = {'Task', 'Feature', 'Bug', 'Design', 'Frontend', 'Backend', 'DevOps', 'Docs', 'Subtask'}
+    if issue_type not in ALLOWED_ISSUE_TYPES:
+        issue_type = 'Task'
     priority = request.form.get('priority', 'Medium')
+    ALLOWED_PRIORITIES = {'Low', 'Medium', 'High', 'Critical'}
+    if priority not in ALLOWED_PRIORITIES:
+        priority = 'Medium'
     
     assignee_id_str = request.form.get('assignee_id')
     assignee_id = int(assignee_id_str) if assignee_id_str and assignee_id_str.isdigit() else None
@@ -41,14 +64,34 @@ def create_task():
     
     sprint_id_str = request.form.get('sprint_id')
     sprint_id = int(sprint_id_str) if sprint_id_str and sprint_id_str.isdigit() else None
-    
+
     if not title or not project_id:
         return redirect(url_for('projects.project_details', project_id=project_id) if project_id else url_for('projects.list_projects'))
-        
-    # Trigger ML Inference
+
+    if not description:
+        flash('Description is required.', 'error')
+        return redirect(url_for('projects.project_details', project_id=project_id) if project_id else url_for('projects.list_projects'))
+
+    project = Project.query.get(project_id)
+    if not project:
+        flash('Project not found.', 'error')
+        return redirect(url_for('projects.list_projects'))
+
+    if assignee_id is not None:
+        user = User.query.get(assignee_id)
+        if not user or user not in project.members:
+            flash('Assignee must be a member of this project.', 'error')
+            return redirect(url_for('projects.project_details', project_id=project_id))
+
+    if sprint_id is not None:
+        sprint = Sprint.query.get(sprint_id)
+        if not sprint or sprint.project_id != project.id:
+            flash('Selected sprint does not belong to this project.', 'error')
+            return redirect(url_for('projects.project_details', project_id=project_id))
+
     text_for_ml = f"{title} {description}"
     prediction = MLService.suggest_for_task(text_for_ml)
-    
+
     due_date = None
     if due_date_str:
         try:
@@ -56,9 +99,7 @@ def create_task():
         except ValueError:
             pass
 
-    # Validate against project dates
-    project = Project.query.get(project_id)
-    if project and project.end_date and due_date:
+    if project.end_date and due_date:
         if due_date > project.end_date:
             flash(f"Task due date cannot exceed project end date ({project.end_date.strftime('%Y-%m-%d')}).", 'error')
             return redirect(url_for('projects.project_details', project_id=project_id))
@@ -78,11 +119,10 @@ def create_task():
     )
     
     db.session.add(task)
-    db.session.commit()
     
     if assignee_id and assignee_id != current_user.id:
         create_notification(
-            user_id=assignee_id,
+            user_id=assignee_id, organization_id=project.organization_id,
             title="New Task Assigned",
             message=f"You have been assigned to task: {title}",
             type="info",
@@ -90,27 +130,35 @@ def create_task():
         )
         
     log_activity(f"Created task: {title}", project_id, task.id)
+    db.session.commit()
     flash('Task created!', 'success')
     return redirect(url_for('projects.project_details', project_id=project_id))
 
 @bp.route('/batch-delete', methods=['POST'])
 @login_required
-@requires_project_manager
 def batch_delete_tasks():
     data = request.get_json()
     task_ids = [int(tid) for tid in data.get('task_ids', []) if str(tid).isdigit()]
     
     if not task_ids:
         return jsonify({'success': False, 'message': 'No valid task IDs provided'}), 400
-        
+    
     tasks_to_delete = Task.query.filter(Task.id.in_(task_ids)).all()
-    project_id = tasks_to_delete[0].project_id if tasks_to_delete else None
+    if not tasks_to_delete:
+        return jsonify({'success': False, 'message': 'No tasks found'}), 404
+
+    project = tasks_to_delete[0].project
+    is_manager = project.lead_id == current_user.id or project.created_by_id == current_user.id
+    if not is_manager:
+        org_membership = get_membership(project.organization_id)
+        if not org_membership or org_membership.role != 'ADMIN':
+            return jsonify({'success': False, 'message': 'Access denied. Manager role required.'}), 403
+    
     for task in tasks_to_delete:
         db.session.delete(task)
         
+    log_activity(f"Batch deleted {len(tasks_to_delete)} tasks", project.id)
     db.session.commit()
-    if project_id:
-        log_activity(f"Batch deleted {len(tasks_to_delete)} tasks", project_id)
     flash(f'{len(tasks_to_delete)} tasks deleted successfully.', 'success')
     return jsonify({'success': True})
 
@@ -122,8 +170,8 @@ def delete_task(task_id):
     project_id = task.project_id
     title = task.title
     db.session.delete(task)
-    db.session.commit()
     log_activity(f"Deleted task: {title}", project_id)
+    db.session.commit()
     flash('Task deleted.', 'success')
     return jsonify({'success': True})
 
@@ -138,33 +186,23 @@ def update_task(task_id):
     if not field:
         return jsonify({'success': False, 'message': 'No field provided'}), 400
         
-    is_manager = False
     project = task.project
-    if project.lead_id == current_user.id or project.created_by_id == current_user.id:
-        is_manager = True
-    else:
-        org_membership = Membership.query.filter_by(user_id=current_user.id, organization_id=project.organization_id).first()
-        if org_membership and org_membership.role == 'ADMIN':
-            is_manager = True
-            
+    is_manager = project.lead_id == current_user.id or project.created_by_id == current_user.id
+    if not is_manager:
+        m = get_membership(project.organization_id)
+        is_manager = m and m.role == 'ADMIN'
+
     if not is_manager and field != 'status':
         return jsonify({'success': False, 'message': 'Access denied. You can only update the status.'}), 403
-        
-    # Validation: all subtasks must be done to mark parent as done
+
+    if field == 'status':
+        m = get_membership(task.project.organization_id)
+        if m and m.role == 'CONTRIBUTOR' and task.assignee_id != current_user.id:
+            return jsonify({'success': False, 'message': 'Contributors can only update status on their own tasks.'}), 403
+
     if field == 'status' and value == 'Done' and task.subtasks:
-        for st in task.subtasks:
-            if st.status != 'Done':
-                return jsonify({'success': False, 'message': 'All subtasks must be completed first.'}), 400
-                
-    # Validation: If parent is marked done, mark all subtasks as done? 
-    # Wait, requirement 7: "And once its original task is marked done it should also be done."
-    # So if parent is marked done, we should auto-mark subtasks as done? 
-    # But requirement 6: "Make sure all the subtasks associated to the task are completed before making it marked as done."
-    # If 6 says we can't mark parent as done before subtasks are done, then 7 "once its original task is marked done it should also be done" contradicts. 
-    # Wait, maybe 7 means if I mark the PARENT done (assuming subtasks are done), the subtasks remain done? Or maybe if I force mark parent done, it cascades? 
-    # Let's enforce 6 (cannot mark parent done if subtasks are not done) and if someone asks, we say we followed 6. Wait, if I do both: check if all are done, then nothing to cascade. 
-    # Actually, 7 "once its original task is marked done it should also be done" might mean if the original task is completed, subtasks are automatically completed.
-    # I'll implement auto-complete for subtasks, but wait, the user said BOTH. "Make sure all the subtasks associated to the task are completed before making it marked as done" -> This is a strict check.
+        if any(st.status != 'Done' for st in task.subtasks):
+            return jsonify({'success': False, 'message': 'All subtasks must be completed first.'}), 400
     
     ALLOWED_FIELDS = ['status', 'priority', 'assignee_id', 'due_date', 'title', 'description', 'issue_type', 'category', 'duration_days', 'story_points']
     if field not in ALLOWED_FIELDS:
@@ -187,27 +225,43 @@ def update_task(task_id):
                 return jsonify({'success': False, 'message': 'Invalid date format'}), 400
         elif field == 'assignee_id':
             value = int(value) if value and str(value).isdigit() else None
+            if value is not None:
+                user = User.query.get(value)
+                if not user or user not in project.members:
+                    return jsonify({'success': False, 'message': 'Assignee must be a member of this project.'}), 400
+        elif field == 'story_points':
+            if not value and value != 0:
+                value = None
+            else:
+                try:
+                    value = int(value)
+                except (ValueError, TypeError):
+                    return jsonify({'success': False, 'message': 'Story points must be a whole number.'}), 400
+        elif field == 'duration_days':
+            if not value and value != 0:
+                value = None
+            else:
+                try:
+                    value = float(value)
+                except (ValueError, TypeError):
+                    return jsonify({'success': False, 'message': 'Duration must be a number.'}), 400
+                if task.project.end_date and task.project.start_date:
+                    project_days = (task.project.end_date - task.project.start_date).days
+                    if value > project_days:
+                        return jsonify({'success': False, 'message': f'Duration cannot exceed project duration ({project_days} days).'}), 400
             
         setattr(task, field, value)
         db.session.commit()
         
-        # Cascade-adjust subtask due dates when parent due_date is updated
         adjusted_subtasks = []
         if field == 'due_date' and task.subtasks:
-            new_due = value  # already a datetime or None
             for subtask in task.subtasks:
-                if new_due and subtask.due_date and subtask.due_date > new_due:
-                    subtask.due_date = new_due
+                if value and subtask.due_date and subtask.due_date > value:
+                    subtask.due_date = value
                     adjusted_subtasks.append(subtask.title)
-                elif new_due is None and subtask.due_date:
-                    # Parent due date cleared — no constraint to enforce
-                    pass
             if adjusted_subtasks:
                 db.session.commit()
-                log_activity(
-                    f"Auto-adjusted due dates for {len(adjusted_subtasks)} subtask(s) to match parent",
-                    task.project_id, task.id
-                )
+                log_activity(f"Auto-adjusted {len(adjusted_subtasks)} subtask(s) to match parent due date", task.project_id, task.id)
         
         if field == 'status':
             from app.extensions import socketio
@@ -222,13 +276,15 @@ def update_task(task_id):
         
         if field == 'assignee_id' and value and value != current_user.id:
             create_notification(
-                user_id=value,
+                user_id=value, organization_id=task.project.organization_id,
                 title="Task Assigned",
                 message=f"You have been assigned to task: {task.title}",
                 type="info",
                 link=url_for('projects.project_details', project_id=task.project_id) + '?tab=board'
             )
-            
+        
+        db.session.commit()
+        
         response = {'success': True}
         if adjusted_subtasks:
             response['warning'] = f"Due dates for {len(adjusted_subtasks)} subtask(s) were adjusted to match the new parent due date: {', '.join(adjusted_subtasks)}"
@@ -243,13 +299,29 @@ def ml_suggest():
     from datetime import timedelta
 
     data = request.get_json()
-    title = data.get('title', '').strip()
-    description = data.get('description', '').strip()
+    if not isinstance(data, dict):
+        return jsonify({'success': False, 'message': 'Invalid JSON body'}), 400
+    title = data.get('title', '')
+    description = data.get('description', '')
+    if not isinstance(title, str) or not isinstance(description, str):
+        return jsonify({'success': False, 'message': 'Title and description must be strings'}), 400
+    title = title.strip()
+    description = description.strip()
     if not title:
         return jsonify({'success': False, 'message': 'No title provided'}), 400
 
-    prediction = MLService.suggest_for_task(title, description)
-    suggested_date = (datetime.utcnow() + timedelta(days=prediction['duration_days'])).strftime('%Y-%m-%d')
+    try:
+        prediction = MLService.suggest_for_task(title, description)
+        suggested_date = (datetime.utcnow() + timedelta(days=prediction['duration_days'])).strftime('%Y-%m-%d')
+    except Exception:
+        return jsonify({
+            'success': True,
+            'category': 'Task',
+            'duration_days': 10,
+            'priority': 'Medium',
+            'suggested_description': 'Please provide more details.',
+            'suggested_date': (datetime.utcnow() + timedelta(days=10)).strftime('%Y-%m-%d'),
+        })
 
     return jsonify({
         'success': True,
@@ -271,22 +343,24 @@ def create_subtask(task_id):
     
     if not title:
         return jsonify({'success': False, 'message': 'Title is required'}), 400
-    
-    # Parse and validate due_date against parent's due_date
+
+    p = parent
+    depth = 0
+    while p.parent_id is not None:
+        depth += 1
+        p = p.parent
+        if depth >= 2:
+            return jsonify({'success': False, 'message': 'Maximum nesting depth (3 levels) exceeded.'}), 400
+
     due_date = None
     if due_date_str:
         try:
             due_date = datetime.strptime(due_date_str, '%Y-%m-%d')
         except ValueError:
             return jsonify({'success': False, 'message': 'Invalid date format. Use YYYY-MM-DD.'}), 400
-        
         if parent.due_date and due_date > parent.due_date:
-            return jsonify({
-                'success': False, 
-                'message': f"Subtask due date cannot exceed parent task's due date ({parent.due_date.strftime('%Y-%m-%d')})."
-            }), 400
-    
-    # Run ML prediction for subtask classification
+            return jsonify({'success': False, 'message': f"Subtask due date cannot exceed parent's due date ({parent.due_date.strftime('%Y-%m-%d')})."}), 400
+
     text_for_ml = f"{title}"
     prediction = MLService.suggest_for_task(text_for_ml)
     
@@ -298,7 +372,7 @@ def create_subtask(task_id):
         parent_id=parent.id,
         issue_type='Subtask',
         status='To Do',
-        due_date=parent.due_date,
+        due_date=due_date or parent.due_date,
         assignee_id=parent.assignee_id,
         category=prediction['category'],
         duration_days=prediction['duration_days']
@@ -316,65 +390,78 @@ def add_comment(task_id):
     from flask import session
     active_org_id = session.get('active_org_id')
     if project.organization_id != active_org_id:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': 'Access denied'}), 403
         return "Access denied", 403
     content = request.form.get('content', '').strip()[:2000]
-    if content:
-        comment = Comment(content=content, task_id=task.id, user_id=current_user.id)
-        db.session.add(comment)
-        db.session.commit()
-        log_activity(f"Commented on task: {task.title}", task.project_id, task.id)
+    if not content:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': 'Comment cannot be empty.'}), 400
+        flash('Comment cannot be empty.', 'error')
+        return redirect(url_for('projects.project_details', project_id=task.project_id) + '?tab=board')
+    comment = Comment(content=content, task_id=task.id, user_id=current_user.id)
+    db.session.add(comment)
+    log_activity(f"Commented on task: {task.title}", task.project_id, task.id)
+    db.session.commit()
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': True, 'message': 'Comment posted successfully'})
     return redirect(url_for('projects.project_details', project_id=task.project_id) + '?tab=board')
 
 @bp.route('/<int:task_id>/attach', methods=['POST'])
 @login_required
 def attach_file(task_id):
-    from flask import current_app, session
     from werkzeug.utils import secure_filename
     import os
 
     task = Task.query.get_or_404(task_id)
-    active_org_id = session.get('active_org_id')
-    if task.project.organization_id != active_org_id:
-        return "Access denied", 403
+    if task.project.organization_id != session.get('active_org_id'):
+        return jsonify({'success': False, 'message': 'Access denied'}), 403
+
+    m = get_membership(task.project.organization_id)
+    if not m:
+        return jsonify({'success': False, 'message': 'Access denied. Not a member.'}), 403
+    if m.role == 'CONTRIBUTOR':
+        return jsonify({'success': False, 'message': 'Contributors cannot upload files.'}), 403
 
     file = request.files.get('file')
+    if not file or not file.filename:
+        return jsonify({'success': False, 'message': 'No file selected'}), 400
 
-    if file and file.filename:
-        ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf', 'doc', 'docx', 'csv', 'txt', 'zip', 'xls', 'xlsx'}
-        MAX_FILE_SIZE_MB = 10
-        ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
-        if ext not in ALLOWED_EXTENSIONS:
-            flash(f'File type not allowed: {ext}', 'error')
-            return redirect(url_for('projects.project_details', project_id=task.project_id) + '?tab=board')
+    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf', 'doc', 'docx', 'csv', 'txt', 'zip', 'xls', 'xlsx'}
+    ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+    if ext not in ALLOWED_EXTENSIONS:
+        return jsonify({'success': False, 'message': f'File type not allowed: {ext}'}), 400
 
-        # Check file size (read into memory briefly)
-        file_data = file.read()
-        if len(file_data) > MAX_FILE_SIZE_MB * 1024 * 1024:
-            flash(f'File too large. Maximum size is {MAX_FILE_SIZE_MB}MB.', 'error')
-            return redirect(url_for('projects.project_details', project_id=task.project_id) + '?tab=board')
-        file.seek(0)  # Reset stream for saving
+    file_data = file.read()
+    if len(file_data) > 10 * 1024 * 1024:
+        return jsonify({'success': False, 'message': 'File too large. Maximum size is 10MB.'}), 400
+    file.seek(0)
 
-        filename = secure_filename(file.filename)
-        # Create uploads folder if not exists
-        upload_path = os.path.join(current_app.root_path, 'static', 'uploads', 'attachments')
-        if not os.path.exists(upload_path):
-            os.makedirs(upload_path)
+    filename = secure_filename(file.filename)
+    upload_path = os.path.join(current_app.root_path, 'static', 'uploads', 'attachments')
+    if not os.path.exists(upload_path):
+        os.makedirs(upload_path)
 
+    try:
         file.save(os.path.join(upload_path, filename))
-
         attachment = Attachment(
-            filename=file.filename,
-            file_path=f"uploads/attachments/{filename}",
-            task_id=task.id,
-            project_id=task.project_id,
-            uploaded_by_id=current_user.id
+            filename=file.filename, file_path=f"uploads/attachments/{filename}",
+            task_id=task.id, project_id=task.project_id, uploaded_by_id=current_user.id
         )
         db.session.add(attachment)
-        db.session.commit()
         log_activity(f"Attached file {filename} to task: {task.title}", task.project_id, task.id)
-        flash('File attached successfully', 'success')
-
-    return redirect(url_for('projects.project_details', project_id=task.project_id) + '?tab=board')
+        db.session.commit()
+        return jsonify({
+            'success': True, 'message': 'File attached successfully',
+            'attachment': {
+                'id': attachment.id, 'filename': attachment.filename,
+                'file_url': url_for('static', filename=attachment.file_path),
+                'uploaded_by': current_user.username
+            }
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Failed to save attachment: {str(e)}'}), 500
 
 @bp.route('/attachment/<int:attachment_id>/delete', methods=['POST'])
 @login_required
@@ -389,21 +476,141 @@ def delete_attachment(attachment_id):
     
     active_org_id = session.get('active_org_id')
     if task.project.organization_id != active_org_id:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': 'Access denied'}), 403
         flash('Access denied.', 'error')
         return redirect(url_for('main.index'))
-        
+
+    project = task.project
+    membership = get_membership(project.organization_id)
+
+    can_delete = False
+    if membership and membership.role == 'ADMIN':
+        can_delete = True
+    elif project.lead_id == current_user.id or project.created_by_id == current_user.id:
+        can_delete = True
+    elif attachment.uploaded_by_id == current_user.id:
+        can_delete = True
+
+    if not can_delete:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': 'You can only delete your own attachments.'}), 403
+        flash('You can only delete your own attachments.', 'error')
+        return redirect(url_for('projects.project_details', project_id=task.project_id) + '?tab=board')
+
     try:
         file_path = os.path.join(current_app.root_path, 'static', attachment.file_path)
         if os.path.exists(file_path):
             os.remove(file_path)
     except Exception as e:
         print(f"Error deleting file: {e}")
-        
+
     db.session.delete(attachment)
-    db.session.commit()
     log_activity(f"Deleted attachment {attachment.filename} from task: {task.title}", task.project_id, task.id)
-    
-    # We don't redirect since this is often called from the task snippet modal (which is loaded via fetch).
-    # But since it's a regular form POST right now, we can redirect back to the board and let the user open the task again.
+    db.session.commit()
+
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': True, 'message': 'Attachment deleted successfully'})
+
     flash('Attachment deleted successfully', 'success')
+    return redirect(url_for('projects.project_details', project_id=task.project_id) + '?tab=board')
+
+def _is_org_admin(organization_id):
+    membership = get_membership(organization_id)
+    return membership is not None and membership.role == 'ADMIN'
+
+@bp.route('/comment/<int:comment_id>', methods=['DELETE'])
+@login_required
+def delete_comment(comment_id):
+    comment = Comment.query.get_or_404(comment_id)
+    task = Task.query.get_or_404(comment.task_id)
+    project = task.project
+    active_org_id = session.get('active_org_id')
+    if project.organization_id != active_org_id:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': 'Access denied'}), 403
+        flash('Access denied.', 'error')
+        return redirect(url_for('main.index'))
+    if not _is_org_admin(project.organization_id) and comment.user_id != current_user.id:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': 'Only admins can delete others comments'}), 403
+        flash('Only admins can delete others comments.', 'error')
+        return redirect(url_for('main.index'))
+    db.session.delete(comment)
+    db.session.commit()
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': True, 'message': 'Comment deleted successfully'})
+    flash('Comment deleted successfully', 'success')
+    return redirect(url_for('projects.project_details', project_id=task.project_id) + '?tab=board')
+
+@bp.route('/<int:task_id>/comments', methods=['DELETE'])
+@login_required
+def clear_comments(task_id):
+    task = Task.query.get_or_404(task_id)
+    project = task.project
+    active_org_id = session.get('active_org_id')
+    if project.organization_id != active_org_id:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': 'Access denied'}), 403
+        flash('Access denied.', 'error')
+        return redirect(url_for('main.index'))
+    if not _is_org_admin(project.organization_id):
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': 'Only admins can clear all comments'}), 403
+        flash('Only admins can clear all comments.', 'error')
+        return redirect(url_for('main.index'))
+    Comment.query.filter_by(task_id=task.id).delete()
+    db.session.commit()
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': True, 'message': 'All comments cleared'})
+    flash('All comments cleared', 'success')
+    return redirect(url_for('projects.project_details', project_id=task.project_id) + '?tab=board')
+
+@bp.route('/activity/<int:activity_id>', methods=['DELETE'])
+@login_required
+def delete_activity(activity_id):
+    activity = ActivityLog.query.get_or_404(activity_id)
+    if activity.task_id is None:
+        return jsonify({'success': False, 'message': 'Activity has no linked task.'}), 400
+    task = Task.query.get_or_404(activity.task_id)
+    project = task.project
+    active_org_id = session.get('active_org_id')
+    if project.organization_id != active_org_id:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': 'Access denied'}), 403
+        flash('Access denied.', 'error')
+        return redirect(url_for('main.index'))
+    if not _is_org_admin(project.organization_id):
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': 'Only admins can delete activity entries'}), 403
+        flash('Only admins can delete activity entries.', 'error')
+        return redirect(url_for('main.index'))
+    db.session.delete(activity)
+    db.session.commit()
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': True, 'message': 'Activity deleted successfully'})
+    flash('Activity deleted successfully', 'success')
+    return redirect(url_for('projects.project_details', project_id=task.project_id) + '?tab=board')
+
+@bp.route('/<int:task_id>/activity', methods=['DELETE'])
+@login_required
+def clear_activity(task_id):
+    task = Task.query.get_or_404(task_id)
+    project = task.project
+    active_org_id = session.get('active_org_id')
+    if project.organization_id != active_org_id:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': 'Access denied'}), 403
+        flash('Access denied.', 'error')
+        return redirect(url_for('main.index'))
+    if not _is_org_admin(project.organization_id):
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': 'Only admins can clear activity history'}), 403
+        flash('Only admins can clear activity history.', 'error')
+        return redirect(url_for('main.index'))
+    ActivityLog.query.filter_by(task_id=task.id).delete()
+    db.session.commit()
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': True, 'message': 'Activity history cleared'})
+    flash('Activity history cleared', 'success')
     return redirect(url_for('projects.project_details', project_id=task.project_id) + '?tab=board')

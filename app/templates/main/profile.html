@@ -5,129 +5,116 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto space-y-8">
+<div class="max-w-3xl mx-auto space-y-5">
 
-    <!-- Profile Header -->
-    <div class="flex items-center gap-6 p-8 bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none shadow-sm">
-        <!-- Avatar -->
+    <div class="flex items-center gap-5 p-5 bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none shadow-sm">
         <div class="relative group">
-            <div class="w-24 h-24 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-3xl shadow-xl ring-4 ring-white dark:ring-supabase-border overflow-hidden">
+            <div class="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-xl shadow-lg ring-2 ring-white dark:ring-supabase-border overflow-hidden">
                 {% if current_user.avatar_path %}
                     <img src="{{ url_for('static', filename=current_user.avatar_path) }}" alt="Avatar" class="w-full h-full object-cover">
                 {% else %}
                     {{ current_user.username[0]|upper }}
                 {% endif %}
             </div>
-            <!-- Upload overlay -->
             <form id="avatar-form" action="{{ url_for('main.profile') }}" method="POST" enctype="multipart/form-data">
                 <label for="avatar-upload" class="absolute inset-0 rounded-full bg-black/0 group-hover:bg-black/40 flex items-center justify-center cursor-pointer transition-all duration-200">
-                    <span class="text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-xs font-bold flex flex-col items-center gap-1">
-                        <i data-lucide="camera" class="w-5 h-5"></i>
-                        Change
+                    <span class="text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-[10px] font-bold flex flex-col items-center gap-0.5">
+                        <i data-lucide="camera" class="w-3.5 h-3.5"></i>
                     </span>
                 </label>
                 <input type="hidden" name="form_type" value="avatar">
                 <input type="file" id="avatar-upload" name="avatar" accept="image/*" class="hidden" onchange="document.getElementById('avatar-form').submit();">
             </form>
         </div>
-        <div class="flex-1">
-            <h1 class="text-2xl font-extrabold text-zinc-900 dark:text-white tracking-tight">{{ current_user.username }}</h1>
-            <p class="text-sm text-zinc-500 dark:text-supabase-muted mt-1">{{ current_user.email }}</p>
-            <div class="flex items-center gap-4 mt-3">
-                <span class="flex items-center gap-1.5 text-xs text-zinc-400">
-                    <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
-                    Joined {{ current_user.created_at.strftime('%B %d, %Y') }}
+        <div class="flex-1 min-w-0">
+            <h1 class="text-lg font-extrabold text-zinc-900 dark:text-white truncate">{{ current_user.username }}</h1>
+            <p class="text-xs text-zinc-500 dark:text-supabase-muted truncate">{{ current_user.email }}</p>
+            <div class="flex items-center gap-3 mt-1.5">
+                <span class="flex items-center gap-1 text-[11px] text-zinc-400">
+                    <i data-lucide="calendar" class="w-3 h-3"></i>
+                    Joined {{ current_user.created_at.strftime('%b %Y') }}
                 </span>
-                <span class="flex items-center gap-1.5 text-xs text-zinc-400">
-                    <i data-lucide="folder" class="w-3.5 h-3.5"></i>
+                <span class="flex items-center gap-1 text-[11px] text-zinc-400">
+                    <i data-lucide="folder" class="w-3 h-3"></i>
                     {{ current_user.memberships.count() }} workspace{{ 's' if current_user.memberships.count() != 1 else '' }}
                 </span>
-                <span class="flex items-center gap-1.5 text-xs text-zinc-400">
-                    <i data-lucide="check-square" class="w-3.5 h-3.5"></i>
-                    {{ current_user.assigned_tasks|length }} active task{{ 's' if current_user.assigned_tasks|length != 1 else '' }}
+                <span class="flex items-center gap-1 text-[11px] text-zinc-400">
+                    <i data-lucide="check-square" class="w-3 h-3"></i>
+                    {{ current_user.assigned_tasks|length }} active
                 </span>
             </div>
         </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
-        <!-- Update Profile -->
         <div class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none shadow-sm">
-            <div class="px-6 py-5 border-b border-zinc-100 dark:border-supabase-border">
-                <h2 class="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                    <span class="w-1.5 h-3 bg-blue-500"></span> Account Details
+            <div class="px-5 py-3.5 border-b border-zinc-100 dark:border-supabase-border">
+                <h2 class="text-xs font-bold text-zinc-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                    <span class="w-1 h-2.5 bg-blue-500"></span> Account Details
                 </h2>
             </div>
-            <form action="{{ url_for('main.profile') }}" method="POST" class="p-6 space-y-5">
+            <form action="{{ url_for('main.profile') }}" method="POST" class="p-5 space-y-4">
                 <input type="hidden" name="form_type" value="profile">
-
-                <div class="space-y-2">
-                    <label class="block text-xs font-bold text-zinc-500 dark:text-supabase-muted uppercase tracking-widest">Username</label>
+                <div class="space-y-1.5">
+                    <label class="block text-[11px] font-bold text-zinc-500 dark:text-supabase-muted uppercase tracking-widest">Username</label>
                     <div class="relative">
-                        <i data-lucide="user" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400"></i>
+                        <i data-lucide="user" class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400"></i>
                         <input type="text" name="username" value="{{ current_user.username }}" required
-                            class="w-full pl-10 pr-4 py-2.5 text-sm font-bold bg-zinc-50 dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition text-zinc-900 dark:text-white">
+                            class="w-full pl-9 pr-3 py-2 text-sm font-bold bg-zinc-50 dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition text-zinc-900 dark:text-white">
                     </div>
                 </div>
-
-                <div class="space-y-2">
-                    <label class="block text-xs font-bold text-zinc-500 dark:text-supabase-muted uppercase tracking-widest">Email Address</label>
+                <div class="space-y-1.5">
+                    <label class="block text-[11px] font-bold text-zinc-500 dark:text-supabase-muted uppercase tracking-widest">Email Address</label>
                     <div class="relative">
-                        <i data-lucide="mail" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400"></i>
+                        <i data-lucide="mail" class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400"></i>
                         <input type="email" name="email" value="{{ current_user.email }}" required
-                            class="w-full pl-10 pr-4 py-2.5 text-sm font-bold bg-zinc-50 dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition text-zinc-900 dark:text-white">
+                            class="w-full pl-9 pr-3 py-2 text-sm font-bold bg-zinc-50 dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition text-zinc-900 dark:text-white">
                     </div>
                 </div>
-
-                <div class="flex justify-end pt-2 border-t border-zinc-50 dark:border-supabase-border/50">
-                    <button type="submit" class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-bold px-5 py-2.5 rounded-none transition shadow-sm active:scale-[0.98]">
-                        <i data-lucide="save" class="w-4 h-4"></i> Save Changes
+                <div class="flex justify-end pt-1 border-t border-zinc-50 dark:border-supabase-border/50">
+                    <button type="submit" class="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-[11px] font-bold px-4 py-2 rounded-none transition shadow-sm active:scale-[0.98]">
+                        <i data-lucide="save" class="w-3.5 h-3.5"></i> Save
                     </button>
                 </div>
             </form>
         </div>
 
-        <!-- Change Password -->
         <div class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none shadow-sm">
-            <div class="px-6 py-5 border-b border-zinc-100 dark:border-supabase-border">
-                <h2 class="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                    <span class="w-1.5 h-3 bg-emerald-500"></span> Change Password
+            <div class="px-5 py-3.5 border-b border-zinc-100 dark:border-supabase-border">
+                <h2 class="text-xs font-bold text-zinc-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                    <span class="w-1 h-2.5 bg-emerald-500"></span> Change Password
                 </h2>
             </div>
-            <form action="{{ url_for('main.profile') }}" method="POST" class="p-6 space-y-5">
+            <form action="{{ url_for('main.profile') }}" method="POST" class="p-5 space-y-4">
                 <input type="hidden" name="form_type" value="password">
-
-                <div class="space-y-2">
-                    <label class="block text-xs font-bold text-zinc-500 dark:text-supabase-muted uppercase tracking-widest">Current Password</label>
+                <div class="space-y-1.5">
+                    <label class="block text-[11px] font-bold text-zinc-500 dark:text-supabase-muted uppercase tracking-widest">Current Password</label>
                     <div class="relative">
-                        <i data-lucide="lock" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400"></i>
-                        <input type="password" name="current_password" required placeholder="••••••••"
-                            class="w-full pl-10 pr-4 py-2.5 text-sm font-bold bg-zinc-50 dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition text-zinc-900 dark:text-white placeholder-zinc-400">
+                        <i data-lucide="lock" class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400"></i>
+                        <input type="password" name="current_password" required placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;"
+                            class="w-full pl-9 pr-3 py-2 text-sm font-bold bg-zinc-50 dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition text-zinc-900 dark:text-white placeholder-zinc-400">
                     </div>
                 </div>
-
-                <div class="space-y-2">
-                    <label class="block text-xs font-bold text-zinc-500 dark:text-supabase-muted uppercase tracking-widest">New Password</label>
+                <div class="space-y-1.5">
+                    <label class="block text-[11px] font-bold text-zinc-500 dark:text-supabase-muted uppercase tracking-widest">New Password</label>
                     <div class="relative">
-                        <i data-lucide="key" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400"></i>
-                        <input type="password" name="new_password" required placeholder="••••••••" minlength="6"
-                            class="w-full pl-10 pr-4 py-2.5 text-sm font-bold bg-zinc-50 dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition text-zinc-900 dark:text-white placeholder-zinc-400">
+                        <i data-lucide="key" class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400"></i>
+                        <input type="password" name="new_password" required placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" minlength="8"
+                            class="w-full pl-9 pr-3 py-2 text-sm font-bold bg-zinc-50 dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition text-zinc-900 dark:text-white placeholder-zinc-400">
                     </div>
                 </div>
-
-                <div class="space-y-2">
-                    <label class="block text-xs font-bold text-zinc-500 dark:text-supabase-muted uppercase tracking-widest">Confirm New Password</label>
+                <div class="space-y-1.5">
+                    <label class="block text-[11px] font-bold text-zinc-500 dark:text-supabase-muted uppercase tracking-widest">Confirm New Password</label>
                     <div class="relative">
-                        <i data-lucide="key" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400"></i>
-                        <input type="password" name="confirm_password" required placeholder="••••••••" minlength="6"
-                            class="w-full pl-10 pr-4 py-2.5 text-sm font-bold bg-zinc-50 dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition text-zinc-900 dark:text-white placeholder-zinc-400">
+                        <i data-lucide="key" class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400"></i>
+                        <input type="password" name="confirm_password" required placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" minlength="8"
+                            class="w-full pl-9 pr-3 py-2 text-sm font-bold bg-zinc-50 dark:bg-supabase-bg border border-zinc-200 dark:border-supabase-border rounded-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition text-zinc-900 dark:text-white placeholder-zinc-400">
                     </div>
                 </div>
-
-                <div class="flex justify-end pt-2 border-t border-zinc-50 dark:border-supabase-border/50">
-                    <button type="submit" class="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold px-5 py-2.5 rounded-none transition shadow-sm active:scale-[0.98]">
-                        <i data-lucide="shield-check" class="w-4 h-4"></i> Update Password
+                <div class="flex justify-end pt-1 border-t border-zinc-50 dark:border-supabase-border/50">
+                    <button type="submit" class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-[11px] font-bold px-4 py-2 rounded-none transition shadow-sm active:scale-[0.98]">
+                        <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Update
                     </button>
                 </div>
             </form>
@@ -135,19 +122,18 @@
 
     </div>
 
-    <!-- Workspace Memberships -->
     <div class="bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none shadow-sm">
-        <div class="px-6 py-5 border-b border-zinc-100 dark:border-supabase-border flex items-center justify-between">
-            <h2 class="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                <span class="w-1.5 h-3 bg-purple-500"></span> Workspace Memberships
+        <div class="px-5 py-3.5 border-b border-zinc-100 dark:border-supabase-border flex items-center justify-between">
+            <h2 class="text-xs font-bold text-zinc-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                <span class="w-1 h-2.5 bg-purple-500"></span> Workspace Memberships
             </h2>
-            <span class="text-xs text-zinc-400 font-bold">{{ current_user.memberships.count() }} workspace{{ 's' if current_user.memberships.count() != 1 else '' }}</span>
+            <span class="text-[11px] text-zinc-400 font-bold">{{ current_user.memberships.count() }} workspace{{ 's' if current_user.memberships.count() != 1 else '' }}</span>
         </div>
         <div class="divide-y divide-zinc-100 dark:divide-supabase-border/50">
             {% for membership in current_user.memberships %}
-            <div class="flex items-center justify-between p-5 hover:bg-zinc-50/50 dark:hover:bg-supabase-card/30 transition">
-                <div class="flex items-center gap-4">
-                    <div class="w-10 h-10 rounded-none bg-red-600 flex items-center justify-center text-white font-black text-sm overflow-hidden flex-shrink-0">
+            <div class="flex items-center justify-between px-5 py-3 hover:bg-zinc-50/50 dark:hover:bg-supabase-card/30 transition">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-none bg-red-600 flex items-center justify-center text-white font-black text-xs overflow-hidden flex-shrink-0">
                         {% if membership.organization.logo_path %}
                             <img src="{{ url_for('static', filename=membership.organization.logo_path) }}" alt="{{ membership.organization.name }}" class="w-full h-full object-cover">
                         {% else %}
@@ -159,7 +145,7 @@
                         <p class="text-[10px] text-zinc-400">{{ membership.organization.memberships.count() }} member{{ 's' if membership.organization.memberships.count() != 1 else '' }} · Joined {{ membership.created_at.strftime('%b %Y') }}</p>
                     </div>
                 </div>
-                <span class="px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-none
+                <span class="px-2.5 py-0.5 text-[9px] font-black uppercase tracking-widest rounded-none
                     {% if membership.role == 'ADMIN' %}bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400
                     {% elif membership.role == 'MEMBER' %}bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400
                     {% else %}bg-zinc-100 dark:bg-supabase-card text-zinc-500 dark:text-supabase-muted{% endif %}">
@@ -167,13 +153,43 @@
                 </span>
             </div>
             {% else %}
-            <div class="p-10 text-center">
-                <i data-lucide="building" class="w-10 h-10 text-zinc-300 dark:text-zinc-600 mx-auto mb-3"></i>
+            <div class="p-8 text-center">
+                <i data-lucide="building" class="w-8 h-8 text-zinc-300 dark:text-zinc-600 mx-auto mb-2"></i>
                 <p class="text-sm text-zinc-500">No workspace memberships yet.</p>
             </div>
             {% endfor %}
         </div>
     </div>
 
+    <div class="flex items-center justify-between px-5 py-3 bg-red-50/20 dark:bg-red-950/5 border border-red-200/50 dark:border-red-900/30 rounded-none">
+        <div class="flex items-center gap-2">
+            <svg class="w-3.5 h-3.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+            <span class="text-[11px] font-bold text-zinc-700 dark:text-supabase-text">Delete Account</span>
+        </div>
+        <form id="delete-account-form" action="{{ url_for('main.delete_account') }}" method="POST" class="inline">
+            <button type="button" onclick="triggerDeleteAccount()" class="p-1.5 text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 hover:bg-rose-600 hover:text-white dark:hover:bg-rose-600 dark:hover:text-white transition-all duration-300 border border-rose-200/50 dark:border-rose-900/30 hover:border-rose-600 rounded-none shadow-sm flex items-center justify-center group cursor-pointer" title="Delete Account">
+                <svg class="w-3.5 h-3.5 transition-transform duration-300 group-hover:rotate-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+            </button>
+        </form>
+    </div>
+
 </div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function triggerDeleteAccount() {
+    showConfirm(
+        "Are you sure you want to delete your account? This will permanently remove all your data and cannot be undone.",
+        function() {
+            document.getElementById('delete-account-form').submit();
+        }
+    );
+}
+</script>
 {% endblock %}

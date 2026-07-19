@@ -1,4 +1,5 @@
-from flask import render_template, redirect, url_for, request, flash, session
+"""Project routes — CRUD, sprint management, file attachments, change lead."""
+from flask import render_template, redirect, url_for, request, flash, session, jsonify
 from flask_login import login_required, current_user
 from app.projects import bp
 from app.models import Project, Sprint, Task, Document, Organization, Membership, User
@@ -6,6 +7,13 @@ from app.extensions import db
 from datetime import datetime
 from app.utils.notifications import create_notification
 from app.utils.rbac import requires_project_manager
+from app.utils import get_membership
+
+
+def _verify_membership(organization_id):
+    if not organization_id:
+        return False
+    return get_membership(organization_id) is not None
 
 @bp.route('/')
 @login_required
@@ -16,7 +24,7 @@ def list_projects():
     projects = projects_pagination.items
     org_members = [m.user for m in Membership.query.filter_by(organization_id=active_org_id).all()]
     org = Organization.query.get(active_org_id)
-    membership = Membership.query.filter_by(user_id=current_user.id, organization_id=active_org_id).first()
+    membership = get_membership()
     is_admin = membership and membership.role == 'ADMIN'
     return render_template('projects/list.html', projects=projects, pagination=projects_pagination, org_members=org_members, org=org, is_admin=is_admin)
 
@@ -33,22 +41,55 @@ def create_project():
     end_date_raw = request.form.get('end_date', '').strip()
     member_ids = request.form.getlist('member_ids')
 
+    if not _verify_membership(active_org_id):
+        flash('Access denied.', 'error')
+        return redirect(url_for('main.index'))
+
+    membership = get_membership()
+    if membership and membership.role == 'CONTRIBUTOR':
+        flash('Contributors cannot create projects.', 'error')
+        return redirect(url_for('projects.list_projects'))
+
+    ALLOWED_STATUSES = {'PLANNING', 'ACTIVE', 'ON_HOLD', 'COMPLETED', 'CANCELLED'}
+    ALLOWED_PRIORITIES = {'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'}
+    if status not in ALLOWED_STATUSES:
+        flash('Invalid project status.', 'error')
+        return redirect(url_for('projects.list_projects'))
+    if priority not in ALLOWED_PRIORITIES:
+        flash('Invalid project priority.', 'error')
+        return redirect(url_for('projects.list_projects'))
+
     if not (title and description and status and priority and start_date_raw and end_date_raw and lead_id and member_ids):
         flash('All fields are required to create a project, including at least one team member.', 'error')
         return redirect(url_for('projects.list_projects'))
 
     from datetime import datetime, timedelta
+
+    if not lead_id.isdigit():
+        flash('Invalid lead selected.', 'error')
+        return redirect(url_for('projects.list_projects'))
     lead_id = int(lead_id)
+
+    org_member_ids = {m.user_id for m in Membership.query.filter_by(organization_id=active_org_id).all()}
+    if lead_id not in org_member_ids:
+        flash('Selected lead is not a member of this workspace.', 'error')
+        return redirect(url_for('projects.list_projects'))
 
     try:
         start_date = datetime.strptime(start_date_raw, '%Y-%m-%d')
     except ValueError:
-        start_date = datetime.utcnow()
+        flash('Invalid start date format.', 'error')
+        return redirect(url_for('projects.list_projects'))
 
     try:
         end_date = datetime.strptime(end_date_raw, '%Y-%m-%d')
     except ValueError:
-        end_date = start_date + timedelta(days=30)
+        flash('Invalid end date format.', 'error')
+        return redirect(url_for('projects.list_projects'))
+
+    if end_date < start_date:
+        flash('End date cannot be earlier than start date.', 'error')
+        return redirect(url_for('projects.list_projects'))
 
     project = Project(
         title=title,
@@ -64,17 +105,20 @@ def create_project():
     db.session.add(project)
     db.session.commit()
     
-    # Add creator as a member by default
     project.members.append(current_user)
 
-    # Add additional selected members
     for mid in member_ids:
-        u = User.query.get(int(mid))
+        if not mid.isdigit():
+            continue
+        uid = int(mid)
+        if uid not in org_member_ids:
+            continue
+        u = User.query.get(uid)
         if u and u not in project.members:
             project.members.append(u)
             if u.id != current_user.id:
                 create_notification(
-                    user_id=u.id,
+                    user_id=u.id, organization_id=active_org_id,
                     title="Added to Project",
                     message=f"You have been added to project: {project.title}",
                     type="info",
@@ -92,24 +136,25 @@ def project_details(project_id):
     active_org_id = session.get('active_org_id')
     project = Project.query.get_or_404(project_id)
     
-    # Verify organization access
     if project.organization_id != active_org_id:
+        flash('Access denied.', 'error')
+        return redirect(url_for('main.index'))
+
+    if not get_membership():
         flash('Access denied.', 'error')
         return redirect(url_for('main.index'))
 
     sprints = project.sprints.all()
     active_sprint = next((s for s in sprints if s.is_active), None)
-    # Only show top-level tasks in backlog (subtasks inherit sprint from parent)
     backlog_tasks = project.tasks.filter_by(sprint_id=None, parent_id=None).all()
     documents = project.documents.order_by(Document.updated_at.desc()).all()
     
     task_page = request.args.get('task_page', 1, type=int)
     tasks_pagination = project.tasks.filter_by(parent_id=None).order_by(Task.created_at.desc()).paginate(page=task_page, per_page=20, error_out=False)
     
-    # Get all organization users for assignee dropdown
     org_members = [m.user for m in Membership.query.filter_by(organization_id=active_org_id).all()]
     
-    membership = Membership.query.filter_by(user_id=current_user.id, organization_id=active_org_id).first()
+    membership = get_membership()
     is_admin = membership and membership.role == 'ADMIN'
     
     return render_template('projects/project_details.html', 
@@ -125,6 +170,7 @@ def project_details(project_id):
 
 @bp.route('/<int:project_id>/sprint/create', methods=['POST'])
 @login_required
+@requires_project_manager
 def create_sprint(project_id):
     project = Project.query.get_or_404(project_id)
     title = request.form.get('title', 'New Sprint')
@@ -145,6 +191,7 @@ def create_sprint(project_id):
 
 @bp.route('/sprint/<int:sprint_id>/start', methods=['POST'])
 @login_required
+@requires_project_manager
 def start_sprint(sprint_id):
     sprint = Sprint.query.get_or_404(sprint_id)
     # Deactivate other sprints in this project
@@ -158,40 +205,32 @@ def start_sprint(sprint_id):
 
 @bp.route('/sprint/<int:sprint_id>/complete', methods=['POST'])
 @login_required
+@requires_project_manager
 def complete_sprint(sprint_id):
     sprint = Sprint.query.get_or_404(sprint_id)
     sprint.is_active = False
     sprint.end_date = datetime.utcnow()
-    
-    # Mark all incomplete tasks in this sprint as Done
+
     incomplete_tasks = sprint.tasks.filter(Task.status != 'Done').all()
-    completed_count = 0
+    backlog_count = 0
     for task in incomplete_tasks:
-        task.status = 'Done'
-        completed_count += 1
-    
-    # Also complete ALL subtasks whose parent is in this sprint, regardless of subtask's own sprint_id
-    parent_ids = [t.id for t in sprint.tasks.all()]
-    if parent_ids:
-        orphan_subtasks = Task.query.filter(
-            Task.parent_id.in_(parent_ids),
-            Task.status != 'Done'
-        ).all()
-        for subtask in orphan_subtasks:
-            subtask.status = 'Done'
-            completed_count += 1
-    
+        task.sprint_id = None
+        backlog_count += 1
+
     db.session.commit()
-    if completed_count > 0:
-        flash(f'Sprint "{sprint.title}" completed. {completed_count} issue(s)/subtask(s) marked as Done.', 'success')
+    if backlog_count > 0:
+        flash(f'Sprint "{sprint.title}" completed. {backlog_count} incomplete task(s) moved to backlog.', 'success')
     else:
         flash(f'Sprint "{sprint.title}" completed. All tasks were already Done.', 'success')
     return redirect(url_for('projects.project_details', project_id=sprint.project_id, tab='backlog'))
 
 @bp.route('/tasks/<int:task_id>/move-to-sprint', methods=['POST'])
 @login_required
+@requires_project_manager
 def move_to_sprint(task_id):
     task = Task.query.get_or_404(task_id)
+    if not _verify_membership(task.project.organization_id):
+        return jsonify({'success': False, 'message': 'Access denied'}), 403
     data = request.get_json()
     sprint_id = data.get('sprint_id') # Can be None for Backlog
     
@@ -207,6 +246,7 @@ def move_to_sprint(task_id):
 
 @bp.route('/<int:project_id>/sprint/<int:sprint_id>/activate', methods=['POST'])
 @login_required
+@requires_project_manager
 def activate_sprint(project_id, sprint_id):
     project = Project.query.get_or_404(project_id)
     sprint = Sprint.query.get_or_404(sprint_id)
@@ -221,11 +261,19 @@ def activate_sprint(project_id, sprint_id):
     return redirect(url_for('projects.project_details', project_id=project.id) + '?tab=board')
 @bp.route('/<int:project_id>/add_member', methods=['POST'])
 @login_required
+@requires_project_manager
 def add_member(project_id):
     project = Project.query.get_or_404(project_id)
-    user_id = request.form.get('user_id')
-    if user_id:
-        user = User.query.get(int(user_id))
+    if not _verify_membership(project.organization_id):
+        flash('Access denied.', 'error')
+        return redirect(url_for('main.index'))
+    user_id = request.form.get('user_id', '').strip()
+    if user_id and user_id.isdigit():
+        uid = int(user_id)
+        if not Membership.query.filter_by(user_id=uid, organization_id=project.organization_id).first():
+            flash('User is not a member of this workspace.', 'error')
+            return redirect(url_for('projects.project_details', project_id=project.id) + '?tab=settings')
+        user = User.query.get(uid)
         if user and user not in project.members:
             project.members.append(user)
             db.session.commit()
@@ -246,9 +294,7 @@ def delete_project(project_id):
         return redirect(url_for('main.index'))
         
     # Verify user is ADMIN in the current organization
-    membership = Membership.query.filter_by(
-        user_id=current_user.id, organization_id=active_org_id
-    ).first()
+    membership = get_membership()
     is_admin = membership and membership.role == 'ADMIN'
     
     if not is_admin:
@@ -264,15 +310,10 @@ def delete_project(project_id):
 
 @bp.route('/sprint/<int:sprint_id>/edit', methods=['POST'])
 @login_required
+@requires_project_manager
 def edit_sprint(sprint_id):
     sprint = Sprint.query.get_or_404(sprint_id)
     project_id = sprint.project_id
-    project = Project.query.get_or_404(project_id)
-    
-    active_org_id = session.get('active_org_id')
-    if project.organization_id != active_org_id:
-        flash('Access denied.', 'error')
-        return redirect(url_for('main.index'))
         
     new_title = request.form.get('title', '').strip()
     if not new_title:
@@ -287,31 +328,21 @@ def edit_sprint(sprint_id):
 
 @bp.route('/sprint/<int:sprint_id>/delete', methods=['POST'])
 @login_required
+@requires_project_manager
 def delete_sprint(sprint_id):
     sprint = Sprint.query.get_or_404(sprint_id)
     project_id = sprint.project_id
-    project = Project.query.get_or_404(project_id)
-    
-    active_org_id = session.get('active_org_id')
-    if project.organization_id != active_org_id:
-        flash('Access denied.', 'error')
-        return redirect(url_for('main.index'))
         
     title = sprint.title
     
-    # Delete all tasks and subtasks associated with this sprint
-    deleted_task_count = 0
+    # Unlink tasks from sprint (FK is SET NULL, tasks survive)
     for task in sprint.tasks.all():
-        for subtask in task.subtasks:
-            db.session.delete(subtask)
-            deleted_task_count += 1
-        db.session.delete(task)
-        deleted_task_count += 1
-        
+        task.sprint_id = None
+    
     db.session.delete(sprint)
     db.session.commit()
     
-    flash(f'Sprint "{title}" and its {deleted_task_count} associated task(s)/subtask(s) have been deleted.', 'success')
+    flash(f'Sprint "{title}" has been deleted. Tasks remain unassigned from the sprint.', 'success')
     return redirect(url_for('projects.project_details', project_id=project_id, tab='backlog'))
 
 @bp.route('/<int:project_id>/edit', methods=['POST'])
@@ -320,9 +351,11 @@ def delete_sprint(sprint_id):
 def edit_project(project_id):
     active_org_id = session.get('active_org_id')
     project = Project.query.get_or_404(project_id)
-    
-    # Verify organization access
+
     if project.organization_id != active_org_id:
+        flash('Access denied.', 'error')
+        return redirect(url_for('main.index'))
+    if not _verify_membership(active_org_id):
         flash('Access denied.', 'error')
         return redirect(url_for('main.index'))
         
@@ -332,6 +365,15 @@ def edit_project(project_id):
     priority = request.form.get('priority', '').strip()
     start_date_raw = request.form.get('start_date', '').strip()
     end_date_raw = request.form.get('end_date', '').strip()
+
+    ALLOWED_STATUSES = {'PLANNING', 'ACTIVE', 'ON_HOLD', 'COMPLETED', 'CANCELLED'}
+    ALLOWED_PRIORITIES = {'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'}
+    if status not in ALLOWED_STATUSES:
+        flash('Invalid project status.', 'error')
+        return redirect(url_for('projects.list_projects'))
+    if priority not in ALLOWED_PRIORITIES:
+        flash('Invalid project priority.', 'error')
+        return redirect(url_for('projects.list_projects'))
     
     if not (title and status and priority and start_date_raw and end_date_raw):
         flash('All fields except description are required to update the project.', 'error')
@@ -340,14 +382,16 @@ def edit_project(project_id):
     try:
         start_date = datetime.strptime(start_date_raw, '%Y-%m-%d')
     except ValueError:
-        start_date = project.start_date
-        
+        flash('Invalid start date format.', 'error')
+        return redirect(url_for('projects.project_details', project_id=project.id, tab='settings'))
+
     try:
         end_date = datetime.strptime(end_date_raw, '%Y-%m-%d')
     except ValueError:
-        end_date = project.end_date
-        
-    if end_date and start_date and end_date < start_date:
+        flash('Invalid end date format.', 'error')
+        return redirect(url_for('projects.project_details', project_id=project.id, tab='settings'))
+
+    if end_date < start_date:
         flash('End date cannot be earlier than start date.', 'error')
         return redirect(url_for('projects.project_details', project_id=project.id, tab='settings'))
         
@@ -362,52 +406,80 @@ def edit_project(project_id):
     flash('Project details updated successfully.', 'success')
     return redirect(url_for('projects.project_details', project_id=project.id, tab='settings'))
 
+@bp.route('/<int:project_id>/change-lead', methods=['POST'])
+@login_required
+def change_lead(project_id):
+    project = Project.query.get_or_404(project_id)
+    membership = get_membership(project.organization_id)
+    if not membership or membership.role != 'ADMIN':
+        flash('Only workspace admins can change the project lead.', 'error')
+        return redirect(url_for('projects.project_details', project_id=project_id, tab='settings'))
+    new_lead_id = request.form.get('lead_id', '').strip()
+    if not new_lead_id.isdigit():
+        flash('Invalid user selected.', 'error')
+        return redirect(url_for('projects.project_details', project_id=project_id, tab='settings'))
+    user = User.query.get(int(new_lead_id))
+    if not user or user not in project.members:
+        flash('Selected user is not a project member.', 'error')
+        return redirect(url_for('projects.project_details', project_id=project_id, tab='settings'))
+    project.lead_id = int(new_lead_id)
+    db.session.commit()
+    flash(f'Project lead changed to {user.username}.', 'success')
+    return redirect(url_for('projects.project_details', project_id=project_id, tab='settings'))
+
 @bp.route('/<int:project_id>/attach', methods=['POST'])
 @login_required
 def attach_file(project_id):
-    from flask import current_app, session
     from werkzeug.utils import secure_filename
     from app.models import Attachment
     import os
 
     project = Project.query.get_or_404(project_id)
-    active_org_id = session.get('active_org_id')
-    if project.organization_id != active_org_id:
+    if project.organization_id != session.get('active_org_id'):
+        flash('Access denied.', 'error')
+        return redirect(url_for('main.index'))
+    if not _verify_membership(project.organization_id):
         flash('Access denied.', 'error')
         return redirect(url_for('main.index'))
 
+    m = get_membership()
+    if m and m.role == 'CONTRIBUTOR':
+        flash('Contributors cannot upload files.', 'error')
+        return redirect(url_for('projects.project_details', project_id=project.id) + '?tab=docs')
+
     file = request.files.get('file')
+    if not file or not file.filename:
+        flash('No file selected.', 'error')
+        return redirect(url_for('projects.project_details', project_id=project.id) + '?tab=docs')
 
-    if file and file.filename:
-        ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf', 'doc', 'docx', 'csv', 'txt', 'zip', 'xls', 'xlsx'}
-        MAX_FILE_SIZE_MB = 10
-        ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
-        if ext not in ALLOWED_EXTENSIONS:
-            flash(f'File type not allowed: {ext}', 'error')
-            return redirect(url_for('projects.project_details', project_id=project.id) + '?tab=docs')
+    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf', 'doc', 'docx', 'csv', 'txt', 'zip', 'xls', 'xlsx'}
+    ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+    if ext not in ALLOWED_EXTENSIONS:
+        flash(f'File type not allowed: {ext}', 'error')
+        return redirect(url_for('projects.project_details', project_id=project.id) + '?tab=docs')
 
-        file_data = file.read()
-        if len(file_data) > MAX_FILE_SIZE_MB * 1024 * 1024:
-            flash(f'File too large. Maximum size is {MAX_FILE_SIZE_MB}MB.', 'error')
-            return redirect(url_for('projects.project_details', project_id=project.id) + '?tab=docs')
-        file.seek(0)
+    file_data = file.read()
+    if len(file_data) > 10 * 1024 * 1024:
+        flash('File too large. Maximum size is 10MB.', 'error')
+        return redirect(url_for('projects.project_details', project_id=project.id) + '?tab=docs')
+    file.seek(0)
 
-        filename = secure_filename(file.filename)
-        upload_path = os.path.join(current_app.root_path, 'static', 'uploads', 'attachments')
-        if not os.path.exists(upload_path):
-            os.makedirs(upload_path)
+    filename = secure_filename(file.filename)
+    upload_path = os.path.join(current_app.root_path, 'static', 'uploads', 'attachments')
+    if not os.path.exists(upload_path):
+        os.makedirs(upload_path)
 
+    try:
         file.save(os.path.join(upload_path, filename))
-
-        attachment = Attachment(
-            filename=file.filename,
-            file_path=f"uploads/attachments/{filename}",
-            project_id=project.id,
-            uploaded_by_id=current_user.id
-        )
-        db.session.add(attachment)
+        db.session.add(Attachment(
+            filename=file.filename, file_path=f"uploads/attachments/{filename}",
+            project_id=project.id, uploaded_by_id=current_user.id
+        ))
         db.session.commit()
         flash('Document uploaded successfully', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Failed to upload document: {str(e)}', 'error')
 
     return redirect(url_for('projects.project_details', project_id=project.id) + '?tab=docs')
 
@@ -421,21 +493,41 @@ def delete_attachment(attachment_id):
     attachment = Attachment.query.get_or_404(attachment_id)
     project_id = attachment.project_id
     project = Project.query.get_or_404(project_id)
-    
+
     active_org_id = session.get('active_org_id')
     if project.organization_id != active_org_id:
         flash('Access denied.', 'error')
         return redirect(url_for('main.index'))
-        
+    if not _verify_membership(active_org_id):
+        flash('Access denied.', 'error')
+        return redirect(url_for('main.index'))
+
+    membership = get_membership()
+    if membership and membership.role == 'CONTRIBUTOR':
+        flash('Contributors cannot delete attachments.', 'error')
+        return redirect(url_for('projects.project_details', project_id=project_id) + '?tab=docs')
+
+    can_delete = False
+    if membership and membership.role == 'ADMIN':
+        can_delete = True
+    elif project.lead_id == current_user.id or project.created_by_id == current_user.id:
+        can_delete = True
+    elif attachment.uploaded_by_id == current_user.id:
+        can_delete = True
+
+    if not can_delete:
+        flash('You can only delete your own attachments.', 'error')
+        return redirect(url_for('projects.project_details', project_id=project_id) + '?tab=docs')
+
     try:
         file_path = os.path.join(current_app.root_path, 'static', attachment.file_path)
         if os.path.exists(file_path):
             os.remove(file_path)
     except Exception as e:
         print(f"Error deleting file: {e}")
-        
+
     db.session.delete(attachment)
     db.session.commit()
     flash('Attachment deleted successfully', 'success')
-    
+
     return redirect(url_for('projects.project_details', project_id=project_id) + '?tab=docs')

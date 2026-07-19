@@ -39,4 +39,17 @@ Thumbs.db
 *.secret
 *.pem
 *.key
+*.p12
+*.pfx
+*.cer
+*.crt
+*.p7b
+*.p7c
+*.ppk
+id_rsa*
+*.json
 myprojectmanagement-key.pem.pem
+
+# Logs
+*.log
+flowboard.log

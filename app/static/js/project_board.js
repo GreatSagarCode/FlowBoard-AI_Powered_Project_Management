@@ -139,9 +139,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         socket.on('task_moved', (data) => {
-            if (typeof currentUserId !== 'undefined' && data.updated_by === currentUserId) {
-                return; // We made this update, don't re-render it
-            }
+            const isCurrentUser = typeof currentUserId !== 'undefined' && data.updated_by === currentUserId;
 
             const taskId = data.task_id;
             const newStatus = data.status;
@@ -156,10 +154,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 if (targetColId) {
                     const targetCol = document.getElementById(targetColId);
-                    if (targetCol) {
+                    if (targetCol && kanbanCard.parentElement !== targetCol) {
                         targetCol.appendChild(kanbanCard);
-                        kanbanCard.setAttribute('data-status', newStatus);
                     }
+                    kanbanCard.setAttribute('data-status', newStatus);
                 }
             }
             
@@ -183,7 +181,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
             
-            if (typeof showToast === 'function') {
+            if (!isCurrentUser && typeof showToast === 'function') {
                 showToast(`Task PROJ-${taskId} was moved to ${newStatus} by a team member`, 'success');
             }
         });

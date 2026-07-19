@@ -1,10 +1,26 @@
+import logging
 from flask import Flask
 from config import Config
 from app.extensions import db, login_manager, csrf, socketio
 
+def setup_logging(app):
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    if not app.debug:
+        file_handler = logging.FileHandler('flowboard.log')
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s'))
+        app.logger.addHandler(file_handler)
+
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
+    setup_logging(app)
+    if app.debug:
+        app.config['SESSION_COOKIE_SECURE'] = False
 
     # Initialize Flask extensions here
     db.init_app(app)
@@ -12,6 +28,17 @@ def create_app(config_class=Config):
     csrf.init_app(app)
     socketio.init_app(app, async_mode='threading')
     
+    # Register error handlers
+    from flask import render_template
+
+    @app.errorhandler(404)
+    def not_found(e):
+        return render_template('errors/404.html'), 404
+
+    @app.errorhandler(500)
+    def server_error(e):
+        return render_template('errors/500.html'), 500
+
     # Register events
     from app import events
 
@@ -39,10 +66,6 @@ def create_app(config_class=Config):
 
     with app.app_context():
         db.create_all()
-
-    # Pre-load ML models to eliminate cold-start latency on first prediction
-    from app.ml.inference import load_models
-    load_models()
 
     # Initialize and start APScheduler
     try:

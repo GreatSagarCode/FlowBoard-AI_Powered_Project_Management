@@ -1,4 +1,5 @@
-from flask import render_template, redirect, url_for, session, request, flash, jsonify
+"""Main routes — dashboard, team management, settings, profile, search, ML suggestions."""
+from flask import render_template, redirect, url_for, session, request, flash, jsonify, g
 from flask_login import login_required, current_user
 from app.main import bp
 from app.models import Project, Task, Organization, Membership, User, Notification
@@ -7,12 +8,12 @@ from datetime import datetime
 import os
 from werkzeug.utils import secure_filename
 from flask import current_app
+from app.utils import get_membership
 
 
 @bp.before_app_request
 def ensure_org():
     if current_user.is_authenticated:
-        # Exempt routes
         if request.endpoint and (
             'organizations.' in request.endpoint or
             'auth.' in request.endpoint or
@@ -20,22 +21,23 @@ def ensure_org():
         ):
             return None
 
-        # Try to find an active org in session
         active_org_id = session.get('active_org_id')
+        verified_key = f'org_verified_{active_org_id}'
+        if active_org_id and session.get(verified_key):
+            return None
+
         if active_org_id:
-            membership = Membership.query.filter_by(
-                user_id=current_user.id, organization_id=active_org_id
-            ).first()
+            membership = get_membership(active_org_id)
             if membership:
+                session[verified_key] = True
                 return None
 
-        # If no active org in session, check if user has any memberships
         first_membership = current_user.memberships.first()
         if first_membership:
             session['active_org_id'] = first_membership.organization_id
+            session[f'org_verified_{first_membership.organization_id}'] = True
             return None
 
-        # No memberships — redirect to create org
         return redirect(url_for('organizations.create'))
 
     return None
@@ -124,7 +126,7 @@ def team_invite():
     active_org_id = session.get('active_org_id')
     org = Organization.query.get(active_org_id)
     
-    membership = Membership.query.filter_by(user_id=current_user.id, organization_id=active_org_id).first()
+    membership = get_membership()
     if not membership or membership.role == 'CONTRIBUTOR':
         flash('Contributors are not allowed to invite others.', 'error')
         return redirect(url_for('main.team'))
@@ -133,6 +135,18 @@ def team_invite():
     role = request.form.get('role', 'MEMBER').upper()
     if role not in ('MEMBER', 'CONTRIBUTOR'):
         role = 'MEMBER'
+
+    if not email:
+        flash('Email is required.', 'error')
+        return redirect(url_for('main.team'))
+
+    from email_validator import validate_email, EmailNotValidError
+    try:
+        valid = validate_email(email)
+        email = valid.email
+    except EmailNotValidError as e:
+        flash(f'Invalid email: {e}', 'error')
+        return redirect(url_for('main.team'))
 
     user = User.query.filter_by(email=email).first()
     if not user:
@@ -155,9 +169,7 @@ def team_invite():
 def team_remove(user_id):
     active_org_id = session.get('active_org_id')
     # Verify current_user is ADMIN
-    membership = Membership.query.filter_by(
-        user_id=current_user.id, organization_id=active_org_id
-    ).first()
+    membership = get_membership()
     
     if not membership or membership.role != 'ADMIN':
         flash('Only admins can remove members.', 'error')
@@ -184,9 +196,7 @@ def settings():
     org = Organization.query.get(active_org_id)
 
     # Verify user is ADMIN
-    membership = Membership.query.filter_by(
-        user_id=current_user.id, organization_id=active_org_id
-    ).first()
+    membership = get_membership()
     is_admin = membership and membership.role == 'ADMIN'
 
     if request.method == 'POST':
@@ -238,9 +248,7 @@ def delete_workspace():
         return redirect(url_for('main.index'))
 
     # Verify user is ADMIN
-    membership = Membership.query.filter_by(
-        user_id=current_user.id, organization_id=active_org_id
-    ).first()
+    membership = get_membership()
     if not membership or membership.role != 'ADMIN':
         flash('Only workspace administrators can delete the workspace.', 'error')
         return redirect(url_for('main.settings'))
@@ -261,8 +269,12 @@ def ml_suggest():
     from app.services.ml_service import MLService
     
     data = request.get_json()
+    if not isinstance(data, dict):
+        return jsonify({'error': 'Invalid JSON body'}), 400
     title = data.get('title', '')
     description = data.get('description', '')
+    if not isinstance(title, str) or not isinstance(description, str):
+        return jsonify({'error': 'Title and description must be strings'}), 400
     
     if not title:
         return jsonify({'error': 'Title is required'}), 400
@@ -400,6 +412,12 @@ def profile():
                 if ext not in ALLOWED_AVATAR_EXT:
                     flash(f'File type not allowed: {ext}. Use PNG, JPG, GIF, or WEBP.', 'error')
                     return redirect(url_for('main.profile'))
+                avatar.seek(0, os.SEEK_END)
+                size = avatar.tell()
+                avatar.seek(0)
+                if size > MAX_AVATAR_SIZE_MB * 1024 * 1024:
+                    flash(f'Avatar too large. Maximum size is {MAX_AVATAR_SIZE_MB}MB.', 'error')
+                    return redirect(url_for('main.profile'))
                 avatar_data = avatar.read()
                 if len(avatar_data) > MAX_AVATAR_SIZE_MB * 1024 * 1024:
                     flash(f'Avatar too large. Maximum size is {MAX_AVATAR_SIZE_MB}MB.', 'error')
@@ -431,6 +449,10 @@ def profile():
             new_email = request.form.get('email', '').strip()[:120]
 
             if not new_username or not new_email:
+                flash('Username and email are required.', 'error')
+                return redirect(url_for('main.profile'))
+
+            if len(new_username) < 3:
                 flash('Username and email are required.', 'error')
                 return redirect(url_for('main.profile'))
 
@@ -471,8 +493,8 @@ def profile():
                 flash('Current password is incorrect.', 'error')
                 return redirect(url_for('main.profile'))
 
-            if len(new_password) < 6:
-                flash('New password must be at least 6 characters.', 'error')
+            if len(new_password) < 8 or len(new_password) > 128:
+                flash('New password must be between 8 and 128 characters.', 'error')
                 return redirect(url_for('main.profile'))
 
             if new_password != confirm_password:
@@ -486,3 +508,15 @@ def profile():
         return redirect(url_for('main.profile'))
 
     return render_template('main/profile.html', org=org)
+
+
+@bp.route('/profile/delete-account', methods=['POST'])
+@login_required
+def delete_account():
+    from flask_login import logout_user
+    user = current_user
+    logout_user()
+    db.session.delete(user)
+    db.session.commit()
+    flash('Your account has been permanently deleted.', 'info')
+    return redirect(url_for('main.index'))

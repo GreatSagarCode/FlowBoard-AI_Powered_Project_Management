@@ -1,3 +1,4 @@
+"""Flask extensions — db, login, CSRF, and Socket.IO."""
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect

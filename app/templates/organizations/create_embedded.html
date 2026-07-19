@@ -17,6 +17,7 @@
     <!-- Form Card -->
     <div class="bg-white dark:bg-supabase-bg border border-zinc-100 dark:border-supabase-border rounded-none shadow-xl overflow-hidden glass">
         <form action="{{ url_for('organizations.create') }}" method="POST" enctype="multipart/form-data" class="p-6 space-y-6">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <!-- Logo Upload -->
             <div class="space-y-2">
                 <label class="block text-sm font-semibold text-zinc-800 dark:text-supabase-text">Workspace Logo</label>
@@ -29,7 +30,7 @@
                             Upload Logo
                             <input type="file" name="logo" class="hidden" accept="image/*" onchange="previewImage(this)">
                         </label>
-                        <p class="text-xs text-zinc-400">Square layout recommended, up to 10MB.</p>
+                        <p class="text-xs text-zinc-400">Square layout recommended, up to 2MB.</p>
                     </div>
                 </div>
             </div>

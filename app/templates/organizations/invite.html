@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Invite Members | FlowBoard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -62,6 +63,7 @@
         {% endwith %}
 
         <form action="{{ url_for('organizations.invite') }}" method="POST" onsubmit="return validateInviteEmails(this)" class="px-7 pb-5 space-y-5">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <!-- Email textarea -->
             <div>
                 <textarea name="emails" rows="4"
@@ -103,6 +105,39 @@
         } else {
             document.documentElement.classList.remove('dark');
         }
+
+        // Inject CSRF token into POST forms
+        (function() {
+            const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            if (csrfMeta) {
+                const token = csrfMeta.getAttribute('content');
+                document.querySelectorAll('form[method="POST"], form[method="post"]').forEach(function(form) {
+                    if (!form.querySelector('input[name="csrf_token"]')) {
+                        var input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = 'csrf_token';
+                        input.value = token;
+                        form.appendChild(input);
+                    }
+                });
+                var originalFetch = window.fetch;
+                window.fetch = async function() {
+                    var args = arguments;
+                    var config = args[1] || {};
+                    if (!config.headers) config.headers = {};
+                    var method = (config.method || 'GET').toUpperCase();
+                    if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+                        if (config.headers instanceof Headers) {
+                            if (!config.headers.has('X-CSRFToken')) config.headers.set('X-CSRFToken', token);
+                        } else {
+                            if (!config.headers['X-CSRFToken']) config.headers['X-CSRFToken'] = token;
+                        }
+                    }
+                    args[1] = config;
+                    return originalFetch.apply(window, args);
+                };
+            }
+        })();
 
         function validateInviteEmails(form) {
             const textarea = form.querySelector('textarea[name="emails"]');

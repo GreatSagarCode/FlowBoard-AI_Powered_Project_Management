@@ -1,21 +1,19 @@
+"""Notification utility — creates in-app notifications and emits real-time alerts via WebSocket."""
 from app.extensions import db
 from app.models import Notification
 
-def create_notification(user_id, title, message, type='info', link=None):
-    """
-    Creates a new notification for a specific user and commits it to the database.
-    """
+def create_notification(user_id, title, message, type='info', link=None, organization_id=None):
     try:
         notification = Notification(
             user_id=user_id,
             title=title,
             message=message,
             type=type,
-            link=link
+            link=link,
+            organization_id=organization_id
         )
         db.session.add(notification)
-        db.session.commit()
-        
+
         from app.extensions import socketio
         socketio.emit('new_notification', {
             'title': title,
@@ -23,9 +21,8 @@ def create_notification(user_id, title, message, type='info', link=None):
             'type': type,
             'link': link
         }, room=f"user_{user_id}")
-        
+
         return True
     except Exception as e:
         print(f"Error creating notification: {e}")
-        db.session.rollback()
         return False

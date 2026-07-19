@@ -1,3 +1,4 @@
+"""Organization routes — workspace creation, invitations, switching."""
 import os
 import re
 from flask import render_template, redirect, url_for, flash, request, session, current_app
@@ -8,6 +9,7 @@ from app.models import Organization, Membership, User, PendingInvitation
 from app.extensions import db
 import secrets
 from app.utils.notifications import create_notification
+from app.utils import get_membership
 
 
 def slugify(text):
@@ -21,8 +23,16 @@ def slugify(text):
 def create():
     has_workspaces = current_user.memberships.count() > 0
     if request.method == 'POST':
-        name = request.form.get('name')
-        slug = request.form.get('slug') or slugify(name)
+        name = request.form.get('name', '').strip()
+        slug_raw = request.form.get('slug', '').strip()
+        slug = slugify(slug_raw) if slug_raw else slugify(name)
+
+        if not name or len(name) > 100:
+            flash('Workspace name is required (max 100 characters).', 'error')
+            return redirect(url_for('organizations.create'))
+        if not slug:
+            flash('Workspace slug could not be generated.', 'error')
+            return redirect(url_for('organizations.create'))
 
         # Check if slug exists
         if Organization.query.filter_by(slug=slug).first():
@@ -32,6 +42,17 @@ def create():
         logo = request.files.get('logo')
         logo_path = None
         if logo and logo.filename:
+            ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'}
+            MAX_SIZE_MB = 2
+            ext = logo.filename.rsplit('.', 1)[1].lower() if '.' in logo.filename else ''
+            if ext not in ALLOWED_EXTENSIONS:
+                flash(f'Logo file type not allowed: {ext}. Use PNG, JPG, GIF, WEBP, or SVG.', 'error')
+                return redirect(url_for('organizations.create'))
+            logo_data = logo.read()
+            if len(logo_data) > MAX_SIZE_MB * 1024 * 1024:
+                flash(f'Logo file too large. Maximum size is {MAX_SIZE_MB}MB.', 'error')
+                return redirect(url_for('organizations.create'))
+            logo.seek(0)
             filename = secure_filename(f"{slug}_{logo.filename}")
             upload_path = os.path.join(current_app.root_path, 'static', 'uploads', 'logos')
             if not os.path.exists(upload_path):
@@ -79,7 +100,7 @@ def invite():
         flash('No active workspace found.', 'error')
         return redirect(url_for('main.index'))
         
-    membership = Membership.query.filter_by(user_id=current_user.id, organization_id=active_org_id).first()
+    membership = get_membership()
     if not membership or membership.role == 'CONTRIBUTOR':
         flash('Contributors are not allowed to invite others.', 'error')
         return redirect(url_for('main.index'))
@@ -89,7 +110,15 @@ def invite():
     if role not in ('MEMBER', 'CONTRIBUTOR'):
         role = 'MEMBER'
 
-    emails = [e.strip() for e in emails_raw.replace('\n', ',').split(',') if e.strip()]
+    emails_raw_list = [e.strip() for e in emails_raw.replace('\n', ',').split(',') if e.strip()]
+    from email_validator import validate_email, EmailNotValidError
+    emails = []
+    for e in emails_raw_list:
+        try:
+            valid = validate_email(e)
+            emails.append(valid.email)
+        except EmailNotValidError:
+            flash(f'Invalid email skipped: {e}', 'warning')
     project_id = request.form.get('project_id')
     project = None
     if project_id:
@@ -112,7 +141,7 @@ def invite():
                 
                 # Notify the user they were added to the workspace
                 create_notification(
-                    user_id=user.id,
+                    user_id=user.id, organization_id=org.id,
                     title="Added to Workspace",
                     message=f"You have been added to the workspace: {org.name}",
                     type="success",
@@ -123,7 +152,7 @@ def invite():
             if project and user not in project.members:
                 project.members.append(user)
                 create_notification(
-                    user_id=user.id,
+                    user_id=user.id, organization_id=org.id,
                     title="Added to Project",
                     message=f"You have been added to project: {project.title}",
                     type="info",
@@ -162,9 +191,7 @@ def invite():
 def switch(slug):
     org = Organization.query.filter_by(slug=slug).first_or_404()
     # Verify membership
-    membership = Membership.query.filter_by(
-        user_id=current_user.id, organization_id=org.id
-    ).first()
+    membership = get_membership(org.id)
     if not membership:
         flash('You are not a member of this workspace.', 'error')
         return redirect(url_for('main.index'))

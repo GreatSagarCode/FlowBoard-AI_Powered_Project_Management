@@ -173,7 +173,7 @@
                             <button @click="open = !open" @click.away="open = false" class="p-1.5 text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all">
                                 <i data-lucide="more-horizontal" class="w-5 h-5"></i>
                             </button>
-                            <div x-show="open" x-transition class="absolute right-0 mt-2 w-48 bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none shadow-2xl z-50 py-1">
+                            <div x-show="open" x-transition style="display: none;" class="absolute right-0 mt-2 w-48 bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none shadow-2xl z-50 py-1">
                                 <a href="javascript:void(0)" onclick="editSprintName({{ sprint.id }}, '{{ sprint.title|escape }}')" class="flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-zinc-700 dark:text-supabase-text hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
                                     <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit Sprint
                                 </a>
@@ -237,7 +237,7 @@
                             <button @click="open = !open" @click.away="open = false" class="p-1.5 text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all">
                                 <i data-lucide="more-horizontal" class="w-5 h-5"></i>
                             </button>
-                            <div x-show="open" x-transition class="absolute right-0 mt-2 w-48 bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none shadow-2xl z-50 py-1">
+                            <div x-show="open" x-transition style="display: none;" class="absolute right-0 mt-2 w-48 bg-white dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none shadow-2xl z-50 py-1">
                                 <a href="#" class="flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-zinc-700 dark:text-supabase-text hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
                                     <i data-lucide="move" class="w-3.5 h-3.5"></i> Move to Sprint
                                 </a>
@@ -641,7 +641,7 @@
             <form action="{{ url_for('projects.create_sprint', project_id=project.id) }}" method="POST" class="p-6 space-y-4">
                 <div class="space-y-2">
                     <label class="block text-xs font-bold text-zinc-500 uppercase tracking-widest">Sprint Title</label>
-                    <input type="text" name="title" required placeholder="e.g. Sprint 1 - Core Features" class="w-full px-4 py-3 bg-zinc-50 dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition text-sm font-bold text-zinc-900 dark:text-white">
+                    <input type="text" name="title" required placeholder="e.g. Sprint 1 - Core Features" maxlength="100" class="w-full px-4 py-3 bg-zinc-50 dark:bg-supabase-card border border-zinc-200 dark:border-supabase-border rounded-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition text-sm font-bold text-zinc-900 dark:text-white">
                 </div>
                 <div class="space-y-2">
                     <label class="block text-xs font-bold text-zinc-500 uppercase tracking-widest">End Date</label>
@@ -693,7 +693,7 @@
             </div>
             <div class="flex items-center gap-4">
                 <form action="{{ url_for('projects.attach_file', project_id=project.id) }}" method="POST" enctype="multipart/form-data" class="flex items-center gap-2">
-                    <input type="file" name="file" required class="text-[10px] text-zinc-500 file:mr-2 file:py-1 file:px-2 file:rounded-none file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer w-48">
+                    <input type="file" name="file" required accept=".png,.jpg,.jpeg,.pdf,.doc,.docx,.csv,.txt,.zip,.xls,.xlsx" class="text-[10px] text-zinc-500 file:mr-2 file:py-1 file:px-2 file:rounded-none file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer w-48">
                     <button type="submit" class="inline-flex items-center gap-2 bg-zinc-200 dark:bg-supabase-card text-zinc-900 dark:text-white text-xs font-bold px-4 py-2 rounded-none hover:opacity-90 transition-all">
                         <i data-lucide="upload" class="w-4 h-4"></i> Upload File
                     </button>
@@ -743,6 +743,7 @@
                         <form action="{{ url_for('projects.delete_attachment', attachment_id=attachment.id) }}" method="POST" onsubmit="return confirm('Delete this attachment?');" class="relative z-10">
                             <button type="submit" class="p-1.5 text-zinc-400 hover:text-red-500 transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                         </form>
+                    </div>
                 </div>
                 <h3 class="font-bold text-zinc-900 dark:text-white mb-2 line-clamp-1">{{ attachment.filename }}</h3>
                 <p class="text-xs text-zinc-500 line-clamp-3 mb-4 leading-relaxed">Uploaded File</p>
@@ -911,6 +912,25 @@
                     {% endfor %}
                 </div>
 
+                {% if is_admin %}
+                <div class="mt-10 pt-10 border-t border-zinc-100 dark:border-supabase-border">
+                    <h3 class="text-sm font-bold text-zinc-900 dark:text-white mb-4">Change Project Lead</h3>
+                    <form action="{{ url_for('projects.change_lead', project_id=project.id) }}" method="POST" class="space-y-4">
+                        <div class="space-y-2">
+                            <label class="text-[10px] font-bold uppercase text-zinc-500">Select New Lead</label>
+                            <select name="lead_id" class="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white outline-none focus:border-blue-500 transition">
+                                {% for member in project.members %}
+                                <option value="{{ member.id }}" {% if member.id == project.lead_id %}selected{% endif %}>{{ member.username }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button type="submit" class="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold uppercase tracking-widest rounded-none transition-all">
+                            Update Lead
+                        </button>
+                    </form>
+                </div>
+                {% endif %}
+
                 <div class="mt-10 pt-10 border-t border-zinc-100 dark:border-supabase-border">
                     <h3 class="text-sm font-bold text-zinc-900 dark:text-white mb-4">Invite by Email</h3>
                     <form action="{{ url_for('organizations.invite') }}" method="POST" onsubmit="return validateInviteEmails(this)" class="space-y-4">
@@ -1020,7 +1040,7 @@
             <div class="space-y-1.5">
                 <label class="block text-sm font-bold text-zinc-700 dark:text-supabase-text">Title</label>
                 <div class="flex gap-2">
-                    <input type="text" name="title" id="task_title" required placeholder="Task title"
+                    <input type="text" name="title" id="task_title" required placeholder="Task title" maxlength="150"
                         class="flex-1 px-3 py-2 text-sm font-bold border border-zinc-300 dark:border-supabase-border rounded-none bg-white dark:bg-supabase-card text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
                     <button type="button" onclick="suggestTaskDetails(event)" class="p-2 bg-zinc-100 dark:bg-supabase-card text-blue-600 rounded-none hover:bg-blue-50 dark:hover:bg-blue-900/30 transition shadow-sm" title="AI Suggest Details">
                         <i data-lucide="sparkles" class="w-5 h-5"></i>
@@ -1031,7 +1051,7 @@
             <!-- Description -->
             <div class="space-y-1.5">
                 <label class="block text-sm font-bold text-zinc-700 dark:text-supabase-text">Description</label>
-                <textarea name="description" id="task_description" class="hidden"></textarea>
+                <textarea name="description" id="task_description" class="hidden" required></textarea>
                 <div id="task-editor-container" class="bg-white dark:bg-supabase-card border border-zinc-300 dark:border-supabase-border rounded-none h-24"></div>
             </div>
 
@@ -1208,7 +1228,11 @@ function showTab(tabId) {
 function openTaskDetails(taskId) {
     const panel = document.getElementById('taskPanel');
     panel.classList.remove('translate-x-full');
-    
+
+    // Show loading state
+    const content = document.getElementById('pnl-content');
+    content.innerHTML = '<div class="flex items-center justify-center h-64"><div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>';
+
     // Set up the delete button
     const deleteBtn = document.getElementById('pnl-delete-btn');
     if (deleteBtn) {
@@ -1223,11 +1247,22 @@ function openTaskDetails(taskId) {
         };
     }
 
-    fetch(`/tasks/${taskId}`)
+    fetch(`/tasks/${taskId}`, { cache: 'no-store' })
         .then(r => r.text())
         .then(html => {
             document.getElementById('pnl-content').innerHTML = html;
             lucide.createIcons();
+            const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+            document.querySelectorAll('#pnl-content form[method="POST"]').forEach(form => {
+                if (!form.querySelector('input[name="csrf_token"]')) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'csrf_token';
+                    input.value = csrfToken;
+                    form.appendChild(input);
+                }
+            });
         });
 }
 
@@ -1246,9 +1281,10 @@ async function createSubtask(taskId, form) {
     if (!title) return;
     
     try {
+        const csrfToken = window.__csrfToken || document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         const response = await fetch(`/tasks/${taskId}/subtask`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
             body: JSON.stringify({ title: title, due_date: dueDate })
         });
         const data = await response.json();
@@ -1274,16 +1310,42 @@ async function uploadTaskAttachment(event, taskId, form) {
 
     try {
         const formData = new FormData(form);
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
         const response = await fetch(form.action, {
             method: 'POST',
             body: formData,
-            redirect: 'follow'
+            headers: csrfToken ? { 'X-CSRFToken': csrfToken } : {}
         });
-        if (response.ok) {
-            showToast('File attached successfully!');
-            openTaskDetails(taskId); // Reload snippet
+        const data = await response.json();
+        if (data.success) {
+            showToast(data.message || 'File attached successfully!');
+            form.reset();
+
+            const attachment = data.attachment;
+            const list = form.parentElement.querySelector('ul');
+            const empty = form.parentElement.querySelector('p.text-zinc-500');
+            const header = form.parentElement.querySelector('h3');
+            if (header) {
+                const countSpan = header.querySelector('span') || header;
+                const currentCount = list ? list.querySelectorAll('li').length : 0;
+                header.innerHTML = header.innerHTML.replace(/\((\d+)\)/, '(' + (currentCount + 1) + ')');
+            }
+            if (empty) empty.remove();
+            if (list) {
+                const li = document.createElement('li');
+                li.className = 'flex items-center justify-between group';
+                li.innerHTML = '<div class="flex items-center gap-2 overflow-hidden">' +
+                    '<a href="' + attachment.file_url + '" target="_blank" class="flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline truncate">' +
+                    '<i data-lucide="file" class="w-3.5 h-3.5 flex-shrink-0"></i> <span class="truncate">' + attachment.filename + '</span></a>' +
+                    '<span class="text-[9px] text-zinc-400 flex-shrink-0">' + attachment.uploaded_by + '</span></div>' +
+                    '<button type="button" onclick="deleteAttachment(' + attachment.id + ', ' + taskId + ')" class="p-1 text-zinc-400 hover:text-red-500 transition opacity-0 group-hover:opacity-100"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>';
+                list.appendChild(li);
+                lucide.createIcons();
+            } else {
+                openTaskDetails(taskId);
+            }
         } else {
-            showToast('Failed to attach file.', 'error');
+            showToast(data.message || 'Failed to attach file.', 'error');
         }
     } catch (e) {
         showToast('Error uploading file.', 'error');
@@ -1293,6 +1355,184 @@ async function uploadTaskAttachment(event, taskId, form) {
             btn.disabled = false;
         }
     }
+}
+
+async function postComment(event, taskId, form) {
+    event.preventDefault();
+    const btn = form.querySelector('button[type="submit"]');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = 'Posting...';
+    btn.disabled = true;
+
+    try {
+        const formData = new FormData(form);
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        const response = await fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            headers: csrfToken ? { 'X-CSRFToken': csrfToken } : {}
+        });
+        const data = await response.json();
+        if (data.success) {
+            showToast(data.message || 'Comment posted successfully!');
+            openTaskDetails(taskId);
+        } else {
+            showToast(data.message || 'Failed to post comment.', 'error');
+        }
+    } catch (e) {
+        showToast('Error posting comment.', 'error');
+    } finally {
+        if(btn) {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    }
+}
+
+function saveTaskDetails(taskId) {
+    showToast('Task saved successfully!');
+    openTaskDetails(taskId);
+}
+
+async function deleteAttachment(attachmentId, taskId) {
+    if (!confirm('Delete this attachment?')) return;
+    try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        const response = await fetch(`/tasks/attachment/${attachmentId}/delete`, {
+            method: 'POST',
+            headers: csrfToken ? { 'X-CSRFToken': csrfToken, 'X-Requested-With': 'XMLHttpRequest' } : {}
+        });
+        const data = await response.json();
+        if (data.success) {
+            showToast(data.message || 'Attachment deleted successfully!');
+            const li = document.querySelector(`#pnl-content button[onclick*="deleteAttachment(${attachmentId}"]`)?.closest('li');
+            if (li) {
+                li.remove();
+                const list = document.querySelector('#pnl-content ul');
+                const header = document.querySelector('#pnl-content h3');
+                if (list && !list.querySelectorAll('li').length) {
+                    const emptyMsg = document.createElement('p');
+                    emptyMsg.className = 'text-xs text-zinc-500 dark:text-supabase-muted';
+                    emptyMsg.textContent = 'No attachments yet.';
+                    list.parentElement.insertBefore(emptyMsg, list.nextSibling);
+                    list.remove();
+                }
+                if (header) {
+                    header.innerHTML = header.innerHTML.replace(/\((\d+)\)/, function(m, c) { return '(' + (parseInt(c) - 1) + ')'; });
+                }
+            } else {
+                openTaskDetails(taskId);
+            }
+        } else {
+            showToast(data.message || 'Failed to delete attachment.', 'error');
+        }
+    } catch (e) {
+        showToast('Error deleting attachment.', 'error');
+    }
+}
+
+async function deleteComment(commentId, taskId) {
+    showConfirm('Delete this comment?', async () => {
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            const response = await fetch(`/tasks/comment/${commentId}`, {
+                method: 'DELETE',
+                headers: csrfToken ? { 'X-CSRFToken': csrfToken, 'X-Requested-With': 'XMLHttpRequest' } : {}
+            });
+            const data = await response.json();
+            if (data.success) {
+                showToast(data.message || 'Comment deleted successfully!');
+                const commentEl = document.querySelector(`#pnl-content button[onclick*="deleteComment(${commentId}"]`)?.closest('.flex.gap-4.group');
+                if (commentEl) {
+                    commentEl.remove();
+                    const header = document.querySelector('#pnl-content h3');
+                    if (header && header.textContent.includes('Comments')) {
+                        const count = document.querySelectorAll('#pnl-content .flex.gap-4.group').length;
+                        header.innerHTML = header.innerHTML.replace(/\((\d+)\)/, '(' + count + ')');
+                        const clearBtn = document.querySelector('#pnl-content button[onclick*="clearAllComments"]');
+                        if (clearBtn && count === 0) clearBtn.remove();
+                    }
+                } else {
+                    openTaskDetails(taskId);
+                }
+            } else {
+                showToast(data.message || 'Failed to delete comment.', 'error');
+            }
+        } catch (e) {
+            showToast('Error deleting comment.', 'error');
+        }
+    });
+}
+
+async function clearAllComments(taskId) {
+    showConfirm('Clear all comments? This cannot be undone.', async () => {
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            const response = await fetch(`/tasks/${taskId}/comments`, {
+                method: 'DELETE',
+                headers: csrfToken ? { 'X-CSRFToken': csrfToken, 'X-Requested-With': 'XMLHttpRequest' } : {}
+            });
+            const data = await response.json();
+            if (data.success) {
+                showToast(data.message || 'All comments cleared!');
+                openTaskDetails(taskId);
+            } else {
+                showToast(data.message || 'Failed to clear comments.', 'error');
+            }
+        } catch (e) {
+            showToast('Error clearing comments.', 'error');
+        }
+    });
+}
+
+async function deleteActivity(activityId, taskId) {
+    showConfirm('Delete this activity entry?', async () => {
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            const response = await fetch(`/tasks/activity/${activityId}`, {
+                method: 'DELETE',
+                headers: csrfToken ? { 'X-CSRFToken': csrfToken, 'X-Requested-With': 'XMLHttpRequest' } : {}
+            });
+            const data = await response.json();
+            if (data.success) {
+                showToast(data.message || 'Activity deleted successfully!');
+                const activityEl = document.querySelector(`#pnl-content button[onclick*="deleteActivity(${activityId}"]`)?.closest('.relative.group');
+                if (activityEl) {
+                    activityEl.remove();
+                    const clearBtn = document.querySelector('#pnl-content button[onclick*="clearAllActivity"]');
+                    const remaining = document.querySelectorAll('#pnl-content .relative.group').length;
+                    if (clearBtn && remaining === 0) clearBtn.remove();
+                } else {
+                    openTaskDetails(taskId);
+                }
+            } else {
+                showToast(data.message || 'Failed to delete activity.', 'error');
+            }
+        } catch (e) {
+            showToast('Error deleting activity.', 'error');
+        }
+    });
+}
+
+async function clearAllActivity(taskId) {
+    showConfirm('Clear all activity history? This cannot be undone.', async () => {
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            const response = await fetch(`/tasks/${taskId}/activity`, {
+                method: 'DELETE',
+                headers: csrfToken ? { 'X-CSRFToken': csrfToken, 'X-Requested-With': 'XMLHttpRequest' } : {}
+            });
+            const data = await response.json();
+            if (data.success) {
+                showToast(data.message || 'Activity history cleared!');
+                openTaskDetails(taskId);
+            } else {
+                showToast(data.message || 'Failed to clear activity history.', 'error');
+            }
+        } catch (e) {
+            showToast('Error clearing activity history.', 'error');
+        }
+    });
 }
 
 function updateTaskField(taskId, field, value) {
@@ -1581,43 +1821,7 @@ async function suggestTaskDetails(event) {
     }
 }
 
-// Auto-trigger AI suggestion when task title is finished being typed
-document.addEventListener('DOMContentLoaded', () => {
-    const taskTitleInput = document.getElementById('task_title');
-    if (taskTitleInput) {
-        let taskFetchTimeout = null;
-            taskTitleInput.addEventListener('blur', () => {
-                const title = taskTitleInput.value.trim();
-                if (!title) return;
-                
-                const descInput = document.getElementById('task_description');
-                const hasQuillText = window.quillTask && window.quillTask.getText().trim() !== '';
-                const hasInputText = descInput && descInput.value.trim() !== '';
-                if (hasQuillText || hasInputText) return;
-
-                clearTimeout(taskFetchTimeout);
-                taskFetchTimeout = setTimeout(async () => {
-                try {
-                    const response = await fetch('/tasks/ml/suggest', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ title: title })
-                    });
-                    const data = await response.json();
-                    if (data && data.suggested_description && descInput) {
-                        descInput.value = data.suggested_description;
-                        if (window.quillTask) {
-                            window.quillTask.root.innerHTML = data.suggested_description;
-                        }
-                        showToast('AI description auto-filled');
-                    }
-                } catch (e) {
-                    // silent fail for auto-fill
-                }
-            }, 600);
-        });
-    }
-});
+// Auto-trigger AI suggestion disabled per user request. Use the AI button instead.
 
 function initializeTaskFilters() {
     const filters = {
@@ -1785,6 +1989,15 @@ function editSprintName(sprintId, currentTitle) {
         input.value = newTitle.trim();
         form.appendChild(input);
         
+        const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        if (csrfMeta) {
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrf_token';
+            csrfInput.value = csrfMeta.getAttribute('content');
+            form.appendChild(csrfInput);
+        }
+        
         document.body.appendChild(form);
         form.submit();
     }
@@ -1810,6 +2023,16 @@ function deleteSprint(sprintId) {
         const form = document.createElement('form');
         form.method = 'POST';
         form.action = `/projects/sprint/${sprintId}/delete`;
+        
+        const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        if (csrfMeta) {
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrf_token';
+            csrfInput.value = csrfMeta.getAttribute('content');
+            form.appendChild(csrfInput);
+        }
+        
         document.body.appendChild(form);
         form.submit();
     });
